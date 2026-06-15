@@ -1,5 +1,7 @@
 import { Dialogs } from 'app/components/dialogs';
 import Drop from 'app/components/drop';
+import { ControlPointMapCapture } from 'app/components/control_points/ControlPointMapCapture';
+import { ControlPointsPanel } from 'app/components/control_points/ControlPointsPanel';
 import { PdfViewer } from 'app/components/pdf_viewer/PdfViewer';
 import { MapComponent } from 'app/components/map_component';
 import { MenuBar } from 'app/components/menu_bar';
@@ -41,6 +43,10 @@ import { FeatureEditorFolder } from './panels/feature_editor/feature_editor_fold
 import { Visual } from './visual';
 import { UrlAPI } from './url_api';
 import { activePdfAtom, activePdfPageAtom, digitizerModeAtom } from 'state/digitizer';
+import {
+  controlPointPlacementModeAtom,
+  pendingPdfPointAtom
+} from 'state/control_points';
 import { splitsAtom } from 'state/jotai';
 
 export type ResolvedLayout = 'HORIZONTAL' | 'VERTICAL';
@@ -61,6 +67,10 @@ export function GeojsonIO() {
   const splits = useAtomValue(splitsAtom);
   const [activePdf, setActivePdf] = useAtom(activePdfAtom);
   const [activePdfPage, setActivePdfPage] = useAtom(activePdfPageAtom);
+  const [controlPointPlacementMode, setControlPointPlacementMode] = useAtom(
+    controlPointPlacementModeAtom
+  );
+  const [, setPendingPdfPoint] = useAtom(pendingPdfPointAtom);
   const digitizerMode = useAtomValue(digitizerModeAtom);
   const isBigScreen = useBigScreen();
 
@@ -112,10 +122,11 @@ export function GeojsonIO() {
           </ErrorBoundary>
           {digitizerMode ? (
             <div className="flex flex-auto relative border-t border-gray-200 dark:border-gray-900 overflow-hidden">
-              <div className="w-[45%] min-w-[320px] max-w-[720px]">
+              <div className="w-[45%] min-w-[320px] max-w-[720px] flex flex-col">
                 <PdfViewer
                   file={activePdf?.file ?? null}
                   page={activePdfPage}
+                  isPickingPdfPoint={controlPointPlacementMode === 'awaiting_pdf'}
                   onPageChange={setActivePdfPage}
                   onPageCountChange={(pageCount) => {
                     setActivePdf((current) => {
@@ -136,7 +147,16 @@ export function GeojsonIO() {
                     });
                     setActivePdfPage(1);
                   }}
+                  onPdfCoordinatePick={(coords) => {
+                    if (controlPointPlacementMode !== 'awaiting_pdf') {
+                      return;
+                    }
+
+                    setPendingPdfPoint(coords);
+                    setControlPointPlacementMode('awaiting_map');
+                  }}
                 />
+                <ControlPointsPanel />
               </div>
               <div className="flex-1 flex relative overflow-hidden">
                 <LayoutWorkspace
@@ -147,6 +167,7 @@ export function GeojsonIO() {
                   setMap={setMap}
                 />
               </div>
+              <ControlPointMapCapture />
             </div>
           ) : (
             <LayoutWorkspace

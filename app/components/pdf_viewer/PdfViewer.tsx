@@ -10,6 +10,7 @@ type ZoomMode = 'fit' | '100%';
 interface PdfViewerProps {
   file: File | null;
   page?: number;
+  isPickingPdfPoint?: boolean;
   onPageChange?: (page: number) => void;
   onPageCountChange?: (pageCount: number) => void;
   onFileSelect?: (file: File) => void;
@@ -22,6 +23,7 @@ interface PdfViewerProps {
 export function PdfViewer({
   file,
   page,
+  isPickingPdfPoint = false,
   onPageChange,
   onPageCountChange,
   onFileSelect,
@@ -232,6 +234,11 @@ export function PdfViewer({
       <header className="h-12 px-3 flex items-center gap-2 border-b border-gray-200 dark:border-gray-700">
         <strong className="text-sm text-gray-800 dark:text-gray-100">PDF Viewer</strong>
         <span className="text-xs text-gray-500 dark:text-gray-400 truncate">{fileLabel}</span>
+        {isPickingPdfPoint && (
+          <span className="text-xs text-amber-700 dark:text-amber-300">
+            Pick mode: click a PDF point
+          </span>
+        )}
         <div className="ml-auto flex items-center gap-2">
           <button
             type="button"
@@ -304,7 +311,11 @@ export function PdfViewer({
           <canvas
             ref={canvasRef}
             onClick={handleCanvasClick}
-            className="mx-auto bg-white shadow-sm"
+            className={
+              isPickingPdfPoint
+                ? 'mx-auto bg-white shadow-sm cursor-crosshair ring-2 ring-amber-300'
+                : 'mx-auto bg-white shadow-sm'
+            }
             aria-label="Rendered PDF page"
           />
         </div>
