@@ -1,3 +1,4 @@
+import { aiEnv } from 'app/lib/env_ai';
 import { nanoid } from 'nanoid';
 
 export interface GeorefSuggestion {
@@ -31,6 +32,61 @@ export interface GeorefSuggestionRequest {
 
 export interface GeorefSuggestionAdapter {
   suggestPoints(request: GeorefSuggestionRequest): Promise<GeorefSuggestion[]>;
+}
+
+interface RemoteGeorefSuggestionResponse {
+  suggestions: Array<{
+    pdf: {
+      x: number;
+      y: number;
+      page: number;
+    };
+    map: {
+      lon: number;
+      lat: number;
+    };
+    confidence: number;
+    rationale: string;
+  }>;
+}
+
+/**
+ * Optional AI-backed adapter configured from env, never hardcoded in source.
+ */
+export class RemoteGeorefSuggestionAdapter
+  implements GeorefSuggestionAdapter
+{
+  constructor(
+    private readonly apiUrl: string,
+    private readonly apiKey: string
+  ) {}
+
+  async suggestPoints(
+    request: GeorefSuggestionRequest
+  ): Promise<GeorefSuggestion[]> {
+    const response = await fetch(this.apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${this.apiKey}`
+      },
+      body: JSON.stringify(request)
+    });
+
+    if (!response.ok) {
+      throw new Error(`Georef suggestion API failed with status ${response.status}`);
+    }
+
+    const payload = (await response.json()) as RemoteGeorefSuggestionResponse;
+
+    return payload.suggestions.map((suggestion) => ({
+      id: nanoid(10),
+      pdf: suggestion.pdf,
+      map: suggestion.map,
+      confidence: suggestion.confidence,
+      rationale: suggestion.rationale
+    }));
+  }
 }
 
 /**
@@ -99,4 +155,9 @@ export class HeuristicGeorefSuggestionAdapter
 }
 
 export const defaultGeorefSuggestionAdapter: GeorefSuggestionAdapter =
-  new HeuristicGeorefSuggestionAdapter();
+  aiEnv.GEOREF_SUGGESTION_API_URL && aiEnv.GEOREF_SUGGESTION_API_KEY
+    ? new RemoteGeorefSuggestionAdapter(
+        aiEnv.GEOREF_SUGGESTION_API_URL,
+        aiEnv.GEOREF_SUGGESTION_API_KEY
+      )
+    : new HeuristicGeorefSuggestionAdapter();

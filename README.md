@@ -27,6 +27,13 @@ npm install
 
 Copy `.env.example` to `.env` and add your public Mapbox token as `VITE_PUBLIC_MAPBOX_TOKEN`.
 
+If you wire the experimental AI georeference suggestion service, put only its settings in the same local `.env` file:
+
+- `VITE_GEOREF_SUGGESTION_API_URL`
+- `VITE_GEOREF_SUGGESTION_API_KEY`
+
+If those AI variables are not set, the app falls back to the built-in heuristic suggester. The existing Mapbox configuration remains unchanged.
+
 Then, start the development server:
 
 ```bash
