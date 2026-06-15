@@ -1,5 +1,6 @@
 import { Dialogs } from 'app/components/dialogs';
 import Drop from 'app/components/drop';
+import { PdfViewer } from 'app/components/pdf_viewer/PdfViewer';
 import { MapComponent } from 'app/components/map_component';
 import { MenuBar } from 'app/components/menu_bar';
 import FeatureEditor from './panels/feature_editor';
@@ -39,6 +40,7 @@ import { Button } from './elements';
 import { FeatureEditorFolder } from './panels/feature_editor/feature_editor_folder';
 import { Visual } from './visual';
 import { UrlAPI } from './url_api';
+import { activePdfAtom, activePdfPageAtom, digitizerModeAtom } from 'state/digitizer';
 import { splitsAtom } from 'state/jotai';
 
 export type ResolvedLayout = 'HORIZONTAL' | 'VERTICAL';
@@ -57,6 +59,9 @@ export function GeojsonIO() {
   const [map, setMap] = useState<PMap | null>(null);
   useWindowResizeSplits();
   const splits = useAtomValue(splitsAtom);
+  const [activePdf, setActivePdf] = useAtom(activePdfAtom);
+  const [activePdfPage, setActivePdfPage] = useAtom(activePdfPageAtom);
+  const digitizerMode = useAtomValue(digitizerModeAtom);
   const isBigScreen = useBigScreen();
 
   const layout: ResolvedLayout = isBigScreen ? 'HORIZONTAL' : 'VERTICAL';
@@ -105,44 +110,53 @@ export function GeojsonIO() {
               </div>
             </div>
           </ErrorBoundary>
-          <div
-            className={clsx(
-              layout === 'VERTICAL' && 'flex-col',
-              'flex flex-auto relative border-t border-gray-200 dark:border-gray-900 overflow-hidden'
-            )}
-          >
-            {layout === 'HORIZONTAL' ? <FeatureEditorFolder /> : null}
-            <DndContext
-              sensors={sensor}
-              modifiers={[restrictToWindowEdges]}
-              onDragEnd={(end) => {
-                setPersistentTransform((transform) => {
-                  return {
-                    x: transform.x + end.delta.x,
-                    y: transform.y + end.delta.y
-                  };
-                });
-              }}
-            >
-              <Map
-                persistentTransform={persistentTransform}
-                setMap={setMap}
-                layout={layout}
-              />
-            </DndContext>
-            {layout === 'HORIZONTAL' ? (
-              <>
-                <SidePanel />
-                <Resizer side="left" />
-                <Resizer side="right" />
-              </>
-            ) : layout === 'VERTICAL' ? (
-              <>
-                <BottomPanel layout={layout} />
-                <BottomResizer />
-              </>
-            ) : null}
-          </div>
+          {digitizerMode ? (
+            <div className="flex flex-auto relative border-t border-gray-200 dark:border-gray-900 overflow-hidden">
+              <div className="w-[45%] min-w-[320px] max-w-[720px]">
+                <PdfViewer
+                  file={activePdf?.file ?? null}
+                  page={activePdfPage}
+                  onPageChange={setActivePdfPage}
+                  onPageCountChange={(pageCount) => {
+                    setActivePdf((current) => {
+                      if (!current) {
+                        return current;
+                      }
+
+                      return {
+                        ...current,
+                        pageCount
+                      };
+                    });
+                  }}
+                  onFileSelect={(file) => {
+                    setActivePdf({
+                      file,
+                      pageCount: 1
+                    });
+                    setActivePdfPage(1);
+                  }}
+                />
+              </div>
+              <div className="flex-1 flex relative overflow-hidden">
+                <LayoutWorkspace
+                  layout={layout}
+                  persistentTransform={persistentTransform}
+                  sensor={sensor}
+                  setPersistentTransform={setPersistentTransform}
+                  setMap={setMap}
+                />
+              </div>
+            </div>
+          ) : (
+            <LayoutWorkspace
+              layout={layout}
+              persistentTransform={persistentTransform}
+              sensor={sensor}
+              setPersistentTransform={setPersistentTransform}
+              setMap={setMap}
+            />
+          )}
           <Drop />
           <UrlAPI />
           <Dialogs />
@@ -153,6 +167,61 @@ export function GeojsonIO() {
         </MapContext.Provider>
       </T.Provider>
     </main>
+  );
+}
+
+function LayoutWorkspace({
+  layout,
+  setMap,
+  sensor,
+  setPersistentTransform,
+  persistentTransform
+}: {
+  layout: ResolvedLayout;
+  setMap: (arg0: PMap | null) => void;
+  sensor: ReturnType<typeof useSensors>;
+  persistentTransform: Transform;
+  setPersistentTransform: (updater: (transform: Transform) => Transform) => void;
+}) {
+  return (
+    <div
+      className={clsx(
+        layout === 'VERTICAL' && 'flex-col',
+        'flex flex-auto relative border-t border-gray-200 dark:border-gray-900 overflow-hidden'
+      )}
+    >
+      {layout === 'HORIZONTAL' ? <FeatureEditorFolder /> : null}
+      <DndContext
+        sensors={sensor}
+        modifiers={[restrictToWindowEdges]}
+        onDragEnd={(end) => {
+          setPersistentTransform((transform) => {
+            return {
+              x: transform.x + end.delta.x,
+              y: transform.y + end.delta.y
+            };
+          });
+        }}
+      >
+        <Map
+          persistentTransform={persistentTransform}
+          setMap={setMap}
+          layout={layout}
+        />
+      </DndContext>
+      {layout === 'HORIZONTAL' ? (
+        <>
+          <SidePanel />
+          <Resizer side="left" />
+          <Resizer side="right" />
+        </>
+      ) : layout === 'VERTICAL' ? (
+        <>
+          <BottomPanel layout={layout} />
+          <BottomResizer />
+        </>
+      ) : null}
+    </div>
   );
 }
 

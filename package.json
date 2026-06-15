@@ -107,6 +107,7 @@
     "mproj": "^0.0.40",
     "nanoid": "^5.1.5",
     "optics-ts": "^2.4.1",
+    "pdfjs-dist": "^6.0.227",
     "polygon-clipping": "^0.15.7",
     "polylabel": "^2.0.1",
     "postcss": "^8.5.6",

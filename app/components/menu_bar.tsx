@@ -1,13 +1,139 @@
-import { memo } from 'react';
 import { GitHubLogoIcon } from '@radix-ui/react-icons';
+import { toGeoJSON } from 'app/lib/export_pipeline';
+import { validateFeatureCollection } from 'app/lib/validation_engine';
+import { useAtomValue, useSetAtom } from 'jotai';
+import { memo, useCallback, useRef, type ChangeEvent } from 'react';
+import toast from 'react-hot-toast';
+import {
+  activePdfAtom,
+  activePdfPageAtom,
+  digitizerModeAtom
+} from 'state/digitizer';
+import { digitizerFeaturesAtom } from 'state/digitizer_features';
 
 export const MenuBar = memo(function MenuBar() {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const activePdf = useAtomValue(activePdfAtom);
+  const setActivePdf = useSetAtom(activePdfAtom);
+  const setActivePdfPage = useSetAtom(activePdfPageAtom);
+  const digitizerMode = useAtomValue(digitizerModeAtom);
+  const setDigitizerMode = useSetAtom(digitizerModeAtom);
+  const digitizerFeatures = useAtomValue(digitizerFeaturesAtom);
+
+  const onOpenPdf = useCallback(() => {
+    inputRef.current?.click();
+  }, []);
+
+  const onPdfSelected = useCallback(
+    async (event: ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      if (!file) {
+        return;
+      }
+
+      if (file.type !== 'application/pdf') {
+        toast.error('Please select a PDF file');
+        event.target.value = '';
+        return;
+      }
+
+      try {
+        const pdfjs = await import('pdfjs-dist');
+        pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+          'pdfjs-dist/build/pdf.worker.min.mjs',
+          import.meta.url
+        ).toString();
+
+        const bytes = await file.arrayBuffer();
+        const task = pdfjs.getDocument({ data: bytes });
+        const doc = await task.promise;
+
+        setActivePdf({
+          file,
+          pageCount: doc.numPages
+        });
+        setActivePdfPage(1);
+        await task.destroy();
+
+        toast.success(`Loaded PDF: ${file.name}`);
+      } catch (_error) {
+        toast.error('Could not open PDF');
+      } finally {
+        event.target.value = '';
+      }
+    },
+    [setActivePdf, setActivePdfPage]
+  );
+
+  const onExportZoningGeoJson = useCallback(() => {
+    if (!digitizerFeatures.length) {
+      toast.error('No digitizer features available to export');
+      return;
+    }
+
+    const validationResults = validateFeatureCollection(digitizerFeatures);
+    const blockingErrors = validationResults.filter(
+      (result) => result.severity === 'error'
+    );
+
+    if (blockingErrors.length > 0) {
+      toast.error(`Export blocked by ${blockingErrors.length} validation errors`);
+      return;
+    }
+
+    const sourceName = activePdf?.file.name || 'digitizer-session.pdf';
+    const featureCollection = toGeoJSON(digitizerFeatures, sourceName);
+    const blob = new Blob([JSON.stringify(featureCollection, null, 2)], {
+      type: 'application/geo+json'
+    });
+
+    const a = document.createElement('a');
+    a.download = `zoning-export-${new Date().toISOString().slice(0, 10)}.geojson`;
+    a.href = URL.createObjectURL(blob);
+    a.addEventListener('click', () => {
+      setTimeout(() => URL.revokeObjectURL(a.href), 30 * 1000);
+    });
+    a.click();
+
+    toast.success('Zoning GeoJSON exported');
+  }, [activePdf?.file.name, digitizerFeatures]);
+
   return (
     <div className="text-white bg-mb-gray-dark font-sans px-3 flex">
       <div className="font-extrabold flex items-center tracking-wide text-base">
         geojson.io
       </div>
-      <div className="flex-grow flex justify-end">
+      <div className="flex-grow flex justify-between items-center">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setDigitizerMode((value) => !value)}
+            className="text-xs px-3 py-1 rounded border border-gray-600 hover:border-gray-400"
+          >
+            {digitizerMode ? 'Exit Digitizer' : 'Open Digitizer'}
+          </button>
+          <button
+            type="button"
+            onClick={onOpenPdf}
+            className="text-xs px-3 py-1 rounded border border-gray-600 hover:border-gray-400"
+          >
+            Open PDF
+          </button>
+          <button
+            type="button"
+            onClick={onExportZoningGeoJson}
+            className="text-xs px-3 py-1 rounded border border-gray-600 hover:border-gray-400"
+          >
+            Export Zoning GeoJSON
+          </button>
+          <input
+            ref={inputRef}
+            type="file"
+            accept="application/pdf"
+            onChange={onPdfSelected}
+            className="hidden"
+          />
+        </div>
         <div className="h-[42px]"></div>
         <div className="flex items-center tailwind text-xs text-[10px]">
           powered by
