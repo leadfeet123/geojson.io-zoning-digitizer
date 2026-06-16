@@ -10,6 +10,7 @@ import {
   solveAffineTransform,
   type TransformControlPoint
 } from 'app/lib/transform_engine';
+import {
   controlPointPlacementModeAtom,
   controlPointsAtom,
   pendingPdfPointAtom,
@@ -43,14 +44,18 @@ function statusText(mode: string): string {
 export function ControlPointsPanel() {
   const map = useContext(MapContext)?.map;
   const [controlPoints, setControlPoints] = useAtom(controlPointsAtom);
-  const [placementMode, setPlacementMode] = useAtom(controlPointPlacementModeAtom);
+  const [placementMode, setPlacementMode] = useAtom(
+    controlPointPlacementModeAtom
+  );
   const [pendingPdfPoint, setPendingPdfPoint] = useAtom(pendingPdfPointAtom);
   const [activePdfPage] = useAtom(activePdfPageAtom);
   const [suggestions, setSuggestions] = useState<GeorefSuggestion[]>([]);
   const [isSuggesting, setIsSuggesting] = useState(false);
   const [suggestionError, setSuggestionError] = useState<string | null>(null);
 
-  const confirmedCount = controlPoints.filter((point) => point.confirmed).length;
+  const confirmedCount = controlPoints.filter(
+    (point) => point.confirmed
+  ).length;
   const confirmedPoints = useMemo(
     () =>
       controlPoints
@@ -130,19 +135,20 @@ export function ControlPointsPanel() {
       const center = map.getCenter();
       const bounds = map.getBounds();
 
-      const nextSuggestions = await defaultGeorefSuggestionAdapter.suggestPoints({
-        page: activePdfPage,
-        mapCenter: {
-          lon: center.lng,
-          lat: center.lat
-        },
-        mapBounds: {
-          west: bounds.getWest(),
-          south: bounds.getSouth(),
-          east: bounds.getEast(),
-          north: bounds.getNorth()
-        }
-      });
+      const nextSuggestions =
+        await defaultGeorefSuggestionAdapter.suggestPoints({
+          page: activePdfPage,
+          mapCenter: {
+            lon: center.lng,
+            lat: center.lat
+          },
+          mapBounds: {
+            west: bounds.getWest(),
+            south: bounds.getSouth(),
+            east: bounds.getEast(),
+            north: bounds.getNorth()
+          }
+        });
 
       setSuggestions(nextSuggestions);
     } catch (error) {
@@ -190,11 +196,15 @@ export function ControlPointsPanel() {
   return (
     <section className="h-[280px] border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 overflow-hidden flex flex-col">
       <header className="px-3 py-2 border-b border-gray-200 dark:border-gray-700 flex items-center gap-2">
-        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Control Points</h3>
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+          Control Points
+        </h3>
         <span className="text-xs text-gray-500 dark:text-gray-400">
           {confirmedCount} confirmed / {controlPoints.length} total
         </span>
-        <span className="ml-auto text-xs text-gray-600 dark:text-gray-300">{statusText(placementMode)}</span>
+        <span className="ml-auto text-xs text-gray-600 dark:text-gray-300">
+          {statusText(placementMode)}
+        </span>
       </header>
 
       <div className="px-3 py-2 flex items-center gap-2 border-b border-gray-200 dark:border-gray-700">
@@ -234,7 +244,8 @@ export function ControlPointsPanel() {
         </button>
         {pendingPdfPoint && (
           <span className="text-xs text-gray-600 dark:text-gray-300">
-            PDF: ({formatPixel(pendingPdfPoint.x)}, {formatPixel(pendingPdfPoint.y)}) p{pendingPdfPoint.page}
+            PDF: ({formatPixel(pendingPdfPoint.x)},{' '}
+            {formatPixel(pendingPdfPoint.y)}) p{pendingPdfPoint.page}
           </span>
         )}
       </div>
@@ -245,7 +256,8 @@ export function ControlPointsPanel() {
             AI suggestions (experimental)
           </p>
           <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">
-            Review each suggestion, edit lon/lat if needed, then add to control points.
+            Review each suggestion, edit lon/lat if needed, then add to control
+            points.
           </p>
           {suggestionError && (
             <p className="mt-1 text-xs text-red-600">{suggestionError}</p>
@@ -258,11 +270,12 @@ export function ControlPointsPanel() {
                   className="border border-gray-200 dark:border-gray-700 rounded p-2"
                 >
                   <p className="text-xs text-gray-700 dark:text-gray-200">
-                    PDF ({formatPixel(suggestion.pdf.x)}, {formatPixel(suggestion.pdf.y)}) p
-                    {suggestion.pdf.page}
+                    PDF ({formatPixel(suggestion.pdf.x)},{' '}
+                    {formatPixel(suggestion.pdf.y)}) p{suggestion.pdf.page}
                   </p>
                   <p className="text-xs text-gray-600 dark:text-gray-300">
-                    Confidence {(suggestion.confidence * 100).toFixed(0)}%: {suggestion.rationale}
+                    Confidence {(suggestion.confidence * 100).toFixed(0)}%:{' '}
+                    {suggestion.rationale}
                   </p>
                   <div className="mt-2 flex items-center gap-2">
                     <label className="text-xs text-gray-700 dark:text-gray-200">
@@ -313,11 +326,10 @@ export function ControlPointsPanel() {
           </p>
           {transformStatus.canSolve ? (
             <div className="mt-1 text-xs text-gray-700 dark:text-gray-200 space-y-1">
+              <p>Solved from {confirmedPoints.length} confirmed points</p>
               <p>
-                Solved from {confirmedPoints.length} confirmed points
-              </p>
-              <p>
-                RMS residual: {transformStatus.solution.rmsErrorMeters.toFixed(2)} m
+                RMS residual:{' '}
+                {transformStatus.solution.rmsErrorMeters.toFixed(2)} m
               </p>
             </div>
           ) : (
@@ -335,7 +347,8 @@ export function ControlPointsPanel() {
             <div className="mt-1 text-xs text-gray-700 dark:text-gray-200">
               {transformStatus.solution.residuals.map((residual) => (
                 <p key={residual.index}>
-                  Point {residual.index + 1}: {residual.errorMeters.toFixed(2)} m
+                  Point {residual.index + 1}: {residual.errorMeters.toFixed(2)}{' '}
+                  m
                 </p>
               ))}
             </div>
@@ -344,23 +357,32 @@ export function ControlPointsPanel() {
 
         {controlPoints.length === 0 ? (
           <p className="p-3 text-sm text-gray-600 dark:text-gray-300">
-            No control points yet. Add at least 3 before running georeference in Step 2.
+            No control points yet. Add at least 3 before running georeference in
+            Step 2.
           </p>
         ) : (
           <table className="w-full text-xs">
             <thead className="sticky top-0 bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-300">
               <tr>
-                <th className="text-left px-3 py-2 font-medium">PDF (x, y, page)</th>
-                <th className="text-left px-3 py-2 font-medium">Map (lon, lat)</th>
+                <th className="text-left px-3 py-2 font-medium">
+                  PDF (x, y, page)
+                </th>
+                <th className="text-left px-3 py-2 font-medium">
+                  Map (lon, lat)
+                </th>
                 <th className="text-left px-3 py-2 font-medium">Confirmed</th>
                 <th className="text-left px-3 py-2 font-medium">Actions</th>
               </tr>
             </thead>
             <tbody>
               {controlPoints.map((point) => (
-                <tr key={point.id} className="border-t border-gray-100 dark:border-gray-800">
+                <tr
+                  key={point.id}
+                  className="border-t border-gray-100 dark:border-gray-800"
+                >
                   <td className="px-3 py-2 text-gray-700 dark:text-gray-200">
-                    {formatPixel(point.pdf.x)}, {formatPixel(point.pdf.y)} (p{point.pdf.page})
+                    {formatPixel(point.pdf.x)}, {formatPixel(point.pdf.y)} (p
+                    {point.pdf.page})
                   </td>
                   <td className="px-3 py-2 text-gray-700 dark:text-gray-200">
                     {formatCoord(point.map.lon)}, {formatCoord(point.map.lat)}
@@ -371,7 +393,9 @@ export function ControlPointsPanel() {
                         type="checkbox"
                         checked={point.confirmed}
                         onChange={(event) =>
-                          updatePoint(point.id, { confirmed: event.target.checked })
+                          updatePoint(point.id, {
+                            confirmed: event.target.checked
+                          })
                         }
                       />
                       Confirmed
