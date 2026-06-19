@@ -53,13 +53,8 @@ interface RemoteGeorefSuggestionResponse {
 /**
  * Optional AI-backed adapter configured from env, never hardcoded in source.
  */
-export class RemoteGeorefSuggestionAdapter
-  implements GeorefSuggestionAdapter
-{
-  constructor(
-    private readonly apiUrl: string,
-    private readonly apiKey: string
-  ) {}
+export class RemoteGeorefSuggestionAdapter implements GeorefSuggestionAdapter {
+  constructor(private readonly apiUrl: string) {}
 
   async suggestPoints(
     request: GeorefSuggestionRequest
@@ -67,14 +62,15 @@ export class RemoteGeorefSuggestionAdapter
     const response = await fetch(this.apiUrl, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.apiKey}`
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify(request)
     });
 
     if (!response.ok) {
-      throw new Error(`Georef suggestion API failed with status ${response.status}`);
+      throw new Error(
+        `Georef suggestion API failed with status ${response.status}`
+      );
     }
 
     const payload = (await response.json()) as RemoteGeorefSuggestionResponse;
@@ -92,12 +88,8 @@ export class RemoteGeorefSuggestionAdapter
 /**
  * TODO(phase-3): Replace heuristic output with model-backed landmark matching.
  */
-export class HeuristicGeorefSuggestionAdapter
-  implements GeorefSuggestionAdapter
-{
-  async suggestPoints(
-    request: GeorefSuggestionRequest
-  ): Promise<GeorefSuggestion[]> {
+export class HeuristicGeorefSuggestionAdapter implements GeorefSuggestionAdapter {
+  suggestPoints(request: GeorefSuggestionRequest): Promise<GeorefSuggestion[]> {
     const { mapCenter, mapBounds, page } = request;
     const width = Math.max(mapBounds.east - mapBounds.west, 0.00001);
     const height = Math.max(mapBounds.north - mapBounds.south, 0.00001);
@@ -110,7 +102,8 @@ export class HeuristicGeorefSuggestionAdapter
           lat: mapCenter.lat + height * 0.18
         },
         confidence: 0.52,
-        rationale: 'Estimated from upper-left landmark cluster and viewport extent'
+        rationale:
+          'Estimated from upper-left landmark cluster and viewport extent'
       },
       {
         pdf: { x: 980, y: 240 },
@@ -119,7 +112,8 @@ export class HeuristicGeorefSuggestionAdapter
           lat: mapCenter.lat + height * 0.19
         },
         confidence: 0.49,
-        rationale: 'Estimated from upper-right landmark cluster and viewport extent'
+        rationale:
+          'Estimated from upper-right landmark cluster and viewport extent'
       },
       {
         pdf: { x: 320, y: 980 },
@@ -128,7 +122,8 @@ export class HeuristicGeorefSuggestionAdapter
           lat: mapCenter.lat - height * 0.2
         },
         confidence: 0.47,
-        rationale: 'Estimated from lower-left landmark cluster and viewport extent'
+        rationale:
+          'Estimated from lower-left landmark cluster and viewport extent'
       },
       {
         pdf: { x: 980, y: 1020 },
@@ -137,27 +132,27 @@ export class HeuristicGeorefSuggestionAdapter
           lat: mapCenter.lat - height * 0.2
         },
         confidence: 0.45,
-        rationale: 'Estimated from lower-right landmark cluster and viewport extent'
+        rationale:
+          'Estimated from lower-right landmark cluster and viewport extent'
       }
     ];
 
-    return templates.map((template) => ({
-      id: nanoid(10),
-      pdf: {
-        ...template.pdf,
-        page
-      },
-      map: template.map,
-      confidence: template.confidence,
-      rationale: template.rationale
-    }));
+    return Promise.resolve(
+      templates.map((template) => ({
+        id: nanoid(10),
+        pdf: {
+          ...template.pdf,
+          page
+        },
+        map: template.map,
+        confidence: template.confidence,
+        rationale: template.rationale
+      }))
+    );
   }
 }
 
 export const defaultGeorefSuggestionAdapter: GeorefSuggestionAdapter =
-  aiEnv.GEOREF_SUGGESTION_API_URL && aiEnv.GEOREF_SUGGESTION_API_KEY
-    ? new RemoteGeorefSuggestionAdapter(
-        aiEnv.GEOREF_SUGGESTION_API_URL,
-        aiEnv.GEOREF_SUGGESTION_API_KEY
-      )
+  aiEnv.GEOREF_SUGGESTION_PROXY_URL
+    ? new RemoteGeorefSuggestionAdapter(aiEnv.GEOREF_SUGGESTION_PROXY_URL)
     : new HeuristicGeorefSuggestionAdapter();

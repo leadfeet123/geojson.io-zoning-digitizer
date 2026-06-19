@@ -27,10 +27,12 @@ npm install
 
 Copy `.env.example` to `.env` and add your public Mapbox token as `VITE_PUBLIC_MAPBOX_TOKEN`.
 
-If you wire the experimental AI georeference suggestion service, put only its settings in the same local `.env` file:
+If you wire the experimental AI georeference suggestion service, configure only a proxy endpoint in local `.env`:
 
-- `VITE_GEOREF_SUGGESTION_API_URL`
-- `VITE_GEOREF_SUGGESTION_API_KEY`
+- `VITE_GEOREF_SUGGESTION_PROXY_URL`
+
+Do not put private API keys in `VITE_*` variables. Vite bundles those values into client code.
+Store real secrets only in your server-side proxy/runtime.
 
 If those AI variables are not set, the app falls back to the built-in heuristic suggester. The existing Mapbox configuration remains unchanged.
 

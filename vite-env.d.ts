@@ -6,8 +6,7 @@ interface ViteTypeOptions {
 
 interface ImportMetaEnv {
   readonly VITE_PUBLIC_MAPBOX_TOKEN: string;
-  readonly VITE_GEOREF_SUGGESTION_API_URL?: string;
-  readonly VITE_GEOREF_SUGGESTION_API_KEY?: string;
+  readonly VITE_GEOREF_SUGGESTION_PROXY_URL?: string;
 }
 
 interface ImportMeta {
