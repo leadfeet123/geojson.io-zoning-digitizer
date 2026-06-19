@@ -14,7 +14,11 @@ interface PdfViewerProps {
   onPageChange?: (page: number) => void;
   onPageCountChange?: (pageCount: number) => void;
   onFileSelect?: (file: File) => void;
-  onPdfCoordinatePick?: (coords: { x: number; y: number; page: number }) => void;
+  onPdfCoordinatePick?: (coords: {
+    x: number;
+    y: number;
+    page: number;
+  }) => void;
 }
 
 /**
@@ -32,6 +36,8 @@ export function PdfViewer({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const onPageChangeRef = useRef(onPageChange);
+  const onPageCountChangeRef = useRef(onPageCountChange);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -56,6 +62,14 @@ export function PdfViewer({
 
   const canGoPrev = activePage > 1;
   const canGoNext = activePage < pageCount;
+
+  useEffect(() => {
+    onPageChangeRef.current = onPageChange;
+  }, [onPageChange]);
+
+  useEffect(() => {
+    onPageCountChangeRef.current = onPageCountChange;
+  }, [onPageCountChange]);
 
   useEffect(() => {
     let cancelled = false;
@@ -93,19 +107,17 @@ export function PdfViewer({
         setDocState(loadedDoc);
 
         setPageCount(loadedDoc.numPages);
-        onPageCountChange?.(loadedDoc.numPages);
+        onPageCountChangeRef.current?.(loadedDoc.numPages);
 
-        if (onPageChange) {
-          onPageChange(1);
+        if (onPageChangeRef.current) {
+          onPageChangeRef.current(1);
         } else {
           setInternalPage(1);
         }
       } catch (err) {
         if (!cancelled) {
           setError(
-            err instanceof Error
-              ? err.message
-              : 'Failed to load PDF document'
+            err instanceof Error ? err.message : 'Failed to load PDF document'
           );
         }
       } finally {
@@ -120,14 +132,19 @@ export function PdfViewer({
     return () => {
       cancelled = true;
     };
-  }, [file, onPageChange, onPageCountChange]);
+  }, [file]);
 
   useEffect(() => {
     let renderTask: RenderTask | null = null;
     let cancelled = false;
 
     async function renderPage() {
-      if (!docState || !canvasRef.current || !containerRef.current || pageCount === 0) {
+      if (
+        !docState ||
+        !canvasRef.current ||
+        !containerRef.current ||
+        pageCount === 0
+      ) {
         return;
       }
 
@@ -135,7 +152,10 @@ export function PdfViewer({
         const currentPage = await docState.getPage(activePage);
         const unscaledViewport = currentPage.getViewport({ scale: 1 });
 
-        const containerWidth = Math.max(containerRef.current.clientWidth - 24, 320);
+        const containerWidth = Math.max(
+          containerRef.current.clientWidth - 24,
+          320
+        );
         const scale =
           zoomMode === 'fit'
             ? containerWidth / Math.max(unscaledViewport.width, 1)
@@ -232,8 +252,12 @@ export function PdfViewer({
   return (
     <section className="h-full w-full flex flex-col border-r border-gray-200 bg-gray-50 dark:bg-gray-900 dark:border-gray-700">
       <header className="h-12 px-3 flex items-center gap-2 border-b border-gray-200 dark:border-gray-700">
-        <strong className="text-sm text-gray-800 dark:text-gray-100">PDF Viewer</strong>
-        <span className="text-xs text-gray-500 dark:text-gray-400 truncate">{fileLabel}</span>
+        <strong className="text-sm text-gray-800 dark:text-gray-100">
+          PDF Viewer
+        </strong>
+        <span className="text-xs text-gray-500 dark:text-gray-400 truncate">
+          {fileLabel}
+        </span>
         {isPickingPdfPoint && (
           <span className="text-xs text-amber-700 dark:text-amber-300">
             Pick mode: click a PDF point
@@ -305,7 +329,9 @@ export function PdfViewer({
       ) : (
         <div ref={containerRef} className="flex-1 overflow-auto p-3">
           {loading && (
-            <p className="text-sm text-gray-600 dark:text-gray-300">Loading PDF...</p>
+            <p className="text-sm text-gray-600 dark:text-gray-300">
+              Loading PDF...
+            </p>
           )}
           {error && <p className="text-sm text-red-600">{error}</p>}
           <canvas
