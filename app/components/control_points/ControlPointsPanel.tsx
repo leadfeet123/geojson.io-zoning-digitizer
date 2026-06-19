@@ -11,6 +11,7 @@ import {
   type TransformControlPoint
 } from 'app/lib/transform_engine';
 import {
+  activeControlPointIdAtom,
   controlPointPlacementModeAtom,
   controlPointsAtom,
   pendingPdfPointAtom,
@@ -41,9 +42,16 @@ function statusText(mode: string): string {
 /**
  * Step 1 control-point workflow UI: add pairs, review coordinates, and confirm points.
  */
-export function ControlPointsPanel() {
+export function ControlPointsPanel({
+  onControlPointClick
+}: {
+  onControlPointClick?: (controlPointId: string) => void;
+}) {
   const map = useContext(MapContext)?.map;
   const [controlPoints, setControlPoints] = useAtom(controlPointsAtom);
+  const [activeControlPointId, setActiveControlPointId] = useAtom(
+    activeControlPointIdAtom
+  );
   const [placementMode, setPlacementMode] = useAtom(
     controlPointPlacementModeAtom
   );
@@ -110,6 +118,7 @@ export function ControlPointsPanel() {
 
   function removePoint(id: string): void {
     setControlPoints((current) => current.filter((point) => point.id !== id));
+    setActiveControlPointId((current) => (current === id ? null : current));
   }
 
   function cancelPlacement(): void {
@@ -226,7 +235,10 @@ export function ControlPointsPanel() {
         </button>
         <button
           type="button"
-          onClick={() => setControlPoints([])}
+          onClick={() => {
+            setControlPoints([]);
+            setActiveControlPointId(null);
+          }}
           disabled={controlPoints.length === 0}
           className="px-3 py-1 text-xs rounded border border-gray-300 dark:border-gray-600 disabled:opacity-50"
         >
@@ -378,7 +390,11 @@ export function ControlPointsPanel() {
               {controlPoints.map((point) => (
                 <tr
                   key={point.id}
-                  className="border-t border-gray-100 dark:border-gray-800"
+                  className={
+                    point.id === activeControlPointId
+                      ? 'border-t border-amber-300 bg-amber-50/60 dark:border-amber-500 dark:bg-amber-900/20'
+                      : 'border-t border-gray-100 dark:border-gray-800'
+                  }
                 >
                   <td className="px-3 py-2 text-gray-700 dark:text-gray-200">
                     {formatPixel(point.pdf.x)}, {formatPixel(point.pdf.y)} (p
@@ -402,6 +418,16 @@ export function ControlPointsPanel() {
                     </label>
                   </td>
                   <td className="px-3 py-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveControlPointId(point.id);
+                        onControlPointClick?.(point.id);
+                      }}
+                      className="mr-2 px-2 py-1 rounded border border-gray-300 dark:border-gray-600"
+                    >
+                      Locate
+                    </button>
                     <button
                       type="button"
                       onClick={() => removePoint(point.id)}

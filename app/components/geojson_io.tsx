@@ -37,17 +37,32 @@ import { atom, useAtom, useAtomValue } from 'jotai';
 import debounce from 'lodash/debounce';
 import { Tooltip as T } from 'radix-ui';
 import SearchBoxButton from './search/search_box_button';
-import { Suspense, useContext, useLayoutEffect, useRef, useState } from 'react';
+import {
+  Suspense,
+  useCallback,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState
+} from 'react';
 import { Button } from './elements';
 import { FeatureEditorFolder } from './panels/feature_editor/feature_editor_folder';
 import { Visual } from './visual';
 import { UrlAPI } from './url_api';
-import { activePdfAtom, activePdfPageAtom, digitizerModeAtom } from 'state/digitizer';
 import {
+  activePdfAtom,
+  activePdfPageAtom,
+  digitizerModeAtom
+} from 'state/digitizer';
+import {
+  activeControlPointIdAtom,
   controlPointPlacementModeAtom,
+  controlPointsAtom,
   pendingPdfPointAtom
 } from 'state/control_points';
 import { splitsAtom } from 'state/jotai';
+import mapboxgl from 'mapbox-gl';
 
 export type ResolvedLayout = 'HORIZONTAL' | 'VERTICAL';
 
@@ -61,6 +76,17 @@ const persistentTransformAtom = atom<Transform>({
   y: 5
 });
 
+function createControlPointFocusMarkerElement(): HTMLDivElement {
+  const marker = document.createElement('div');
+  marker.className = 'geojsonio-control-point-focus-marker';
+
+  const core = document.createElement('div');
+  core.className = 'geojsonio-control-point-focus-marker-core';
+  marker.appendChild(core);
+
+  return marker;
+}
+
 export function GeojsonIO() {
   const [map, setMap] = useState<PMap | null>(null);
   useWindowResizeSplits();
@@ -70,9 +96,14 @@ export function GeojsonIO() {
   const [controlPointPlacementMode, setControlPointPlacementMode] = useAtom(
     controlPointPlacementModeAtom
   );
+  const [controlPoints] = useAtom(controlPointsAtom);
+  const [activeControlPointId, setActiveControlPointId] = useAtom(
+    activeControlPointIdAtom
+  );
   const [, setPendingPdfPoint] = useAtom(pendingPdfPointAtom);
   const digitizerMode = useAtomValue(digitizerModeAtom);
   const isBigScreen = useBigScreen();
+  const focusedControlPointMarkerRef = useRef<mapboxgl.Marker | null>(null);
 
   const layout: ResolvedLayout = isBigScreen ? 'HORIZONTAL' : 'VERTICAL';
 
@@ -87,6 +118,56 @@ export function GeojsonIO() {
   const [persistentTransform, setPersistentTransform] = useAtom(
     persistentTransformAtom
   );
+
+  const focusControlPoint = useCallback(
+    (controlPointId: string) => {
+      const point = controlPoints.find((entry) => entry.id === controlPointId);
+      if (!point) {
+        return;
+      }
+
+      setActiveControlPointId(controlPointId);
+
+      const mapboxMap = map?.map;
+      if (!mapboxMap) {
+        return;
+      }
+
+      const nextZoom = Math.max(mapboxMap.getZoom(), 14);
+      mapboxMap.flyTo({
+        center: [point.map.lon, point.map.lat],
+        zoom: nextZoom,
+        essential: true
+      });
+
+      focusedControlPointMarkerRef.current?.remove();
+      focusedControlPointMarkerRef.current = new mapboxgl.Marker({
+        element: createControlPointFocusMarkerElement(),
+        anchor: 'center'
+      })
+        .setLngLat([point.map.lon, point.map.lat])
+        .addTo(mapboxMap);
+    },
+    [controlPoints, map, setActiveControlPointId]
+  );
+
+  useEffect(() => {
+    if (
+      activeControlPointId &&
+      !controlPoints.some((point) => point.id === activeControlPointId)
+    ) {
+      setActiveControlPointId(null);
+      focusedControlPointMarkerRef.current?.remove();
+      focusedControlPointMarkerRef.current = null;
+    }
+  }, [activeControlPointId, controlPoints, setActiveControlPointId]);
+
+  useEffect(() => {
+    return () => {
+      focusedControlPointMarkerRef.current?.remove();
+      focusedControlPointMarkerRef.current = null;
+    };
+  }, []);
 
   return (
     <main className="h-screen flex flex-col bg-white dark:bg-gray-800">
@@ -126,7 +207,11 @@ export function GeojsonIO() {
                 <PdfViewer
                   file={activePdf?.file ?? null}
                   page={activePdfPage}
-                  isPickingPdfPoint={controlPointPlacementMode === 'awaiting_pdf'}
+                  isPickingPdfPoint={
+                    controlPointPlacementMode === 'awaiting_pdf'
+                  }
+                  controlPoints={controlPoints}
+                  activeControlPointId={activeControlPointId}
                   onPageChange={setActivePdfPage}
                   onPageCountChange={(pageCount) => {
                     setActivePdf((current) => {
@@ -155,8 +240,9 @@ export function GeojsonIO() {
                     setPendingPdfPoint(coords);
                     setControlPointPlacementMode('awaiting_map');
                   }}
+                  onControlPointClick={focusControlPoint}
                 />
-                <ControlPointsPanel />
+                <ControlPointsPanel onControlPointClick={focusControlPoint} />
               </div>
               <div className="flex-1 flex relative overflow-hidden">
                 <LayoutWorkspace
@@ -202,7 +288,9 @@ function LayoutWorkspace({
   setMap: (arg0: PMap | null) => void;
   sensor: ReturnType<typeof useSensors>;
   persistentTransform: Transform;
-  setPersistentTransform: (updater: (transform: Transform) => Transform) => void;
+  setPersistentTransform: (
+    updater: (transform: Transform) => Transform
+  ) => void;
 }) {
   return (
     <div

@@ -31,9 +31,15 @@ export const controlPointsAtom = atom<ControlPointPair[]>([]);
 /**
  * Placement workflow state for adding a new control point pair.
  */
-export const controlPointPlacementModeAtom = atom<ControlPointPlacementMode>('idle');
+export const controlPointPlacementModeAtom =
+  atom<ControlPointPlacementMode>('idle');
 
 /**
  * Temporary PDF point waiting for map coordinate pairing.
  */
 export const pendingPdfPointAtom = atom<PdfPoint | null>(null);
+
+/**
+ * Currently focused control point for cross-panel highlight/sync behavior.
+ */
+export const activeControlPointIdAtom = atom<string | null>(null);

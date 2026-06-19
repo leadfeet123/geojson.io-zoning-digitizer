@@ -11,9 +11,20 @@ interface PdfViewerProps {
   file: File | null;
   page?: number;
   isPickingPdfPoint?: boolean;
+  controlPoints?: Array<{
+    id: string;
+    pdf: {
+      x: number;
+      y: number;
+      page: number;
+    };
+    confirmed: boolean;
+  }>;
+  activeControlPointId?: string | null;
   onPageChange?: (page: number) => void;
   onPageCountChange?: (pageCount: number) => void;
   onFileSelect?: (file: File) => void;
+  onControlPointClick?: (controlPointId: string) => void;
   onPdfCoordinatePick?: (coords: {
     x: number;
     y: number;
@@ -28,9 +39,12 @@ export function PdfViewer({
   file,
   page,
   isPickingPdfPoint = false,
+  controlPoints = [],
+  activeControlPointId = null,
   onPageChange,
   onPageCountChange,
   onFileSelect,
+  onControlPointClick,
   onPdfCoordinatePick
 }: PdfViewerProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -45,6 +59,8 @@ export function PdfViewer({
   const [internalPage, setInternalPage] = useState(1);
   const [zoomMode, setZoomMode] = useState<ZoomMode>('fit');
   const [docState, setDocState] = useState<PDFDocumentProxy | null>(null);
+  const [renderedScale, setRenderedScale] = useState(1);
+  const [renderedSize, setRenderedSize] = useState({ width: 0, height: 0 });
 
   const activePage = page ?? internalPage;
 
@@ -187,6 +203,11 @@ export function PdfViewer({
 
         canvas.dataset.pdfScale = String(scale);
         canvas.dataset.pdfPage = String(activePage);
+        setRenderedScale(scale);
+        setRenderedSize({
+          width: Math.ceil(viewport.width),
+          height: Math.ceil(viewport.height)
+        });
       } catch (err) {
         if (!cancelled) {
           setError(
@@ -207,6 +228,11 @@ export function PdfViewer({
   const fileLabel = useMemo(() => {
     return file?.name ?? 'No PDF selected';
   }, [file]);
+
+  const pointsOnPage = useMemo(
+    () => controlPoints.filter((point) => point.pdf.page === activePage),
+    [activePage, controlPoints]
+  );
 
   const handleUploadClick = useCallback(() => {
     fileInputRef.current?.click();
@@ -334,16 +360,56 @@ export function PdfViewer({
             </p>
           )}
           {error && <p className="text-sm text-red-600">{error}</p>}
-          <canvas
-            ref={canvasRef}
-            onClick={handleCanvasClick}
-            className={
-              isPickingPdfPoint
-                ? 'mx-auto bg-white shadow-sm cursor-crosshair ring-2 ring-amber-300'
-                : 'mx-auto bg-white shadow-sm'
-            }
-            aria-label="Rendered PDF page"
-          />
+          <div
+            className="relative mx-auto"
+            style={{
+              width: renderedSize.width > 0 ? renderedSize.width : undefined,
+              height: renderedSize.height > 0 ? renderedSize.height : undefined
+            }}
+          >
+            <canvas
+              ref={canvasRef}
+              onClick={handleCanvasClick}
+              className={
+                isPickingPdfPoint
+                  ? 'mx-auto bg-white shadow-sm cursor-crosshair ring-2 ring-amber-300'
+                  : 'mx-auto bg-white shadow-sm'
+              }
+              aria-label="Rendered PDF page"
+            />
+            {pointsOnPage.length > 0 && renderedSize.width > 0 && (
+              <div className="absolute inset-0 pointer-events-none">
+                {pointsOnPage.map((point, index) => {
+                  const left = point.pdf.x * renderedScale;
+                  const top = point.pdf.y * renderedScale;
+                  const isActive = point.id === activeControlPointId;
+
+                  return (
+                    <button
+                      key={point.id}
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onControlPointClick?.(point.id);
+                      }}
+                      className={
+                        isActive
+                          ? 'absolute -translate-x-1/2 -translate-y-1/2 w-5 h-5 rounded-full border-2 border-white bg-amber-500 text-[10px] font-semibold text-white pointer-events-auto shadow'
+                          : point.confirmed
+                            ? 'absolute -translate-x-1/2 -translate-y-1/2 w-4 h-4 rounded-full border border-white bg-emerald-500 text-[10px] font-semibold text-white pointer-events-auto shadow'
+                            : 'absolute -translate-x-1/2 -translate-y-1/2 w-4 h-4 rounded-full border border-white bg-sky-500 text-[10px] font-semibold text-white pointer-events-auto shadow'
+                      }
+                      style={{ left, top }}
+                      aria-label={`Control point ${index + 1} on page ${activePage}`}
+                      title={`Control point ${index + 1}`}
+                    >
+                      {index + 1}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </section>
