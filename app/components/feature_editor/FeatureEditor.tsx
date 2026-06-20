@@ -113,7 +113,9 @@ export function FeatureEditor({
           <textarea
             rows={4}
             value={feature.properties.notes ?? ''}
-            onChange={(event) => updateProperties({ notes: event.target.value })}
+            onChange={(event) =>
+              updateProperties({ notes: event.target.value })
+            }
             className="mt-1 w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
           />
         </label>
@@ -125,7 +127,9 @@ export function FeatureEditor({
           <div className="mt-1 px-3 py-2 rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-sm text-gray-800 dark:text-gray-100">
             {feature.properties.confidence.toFixed(2)}
           </div>
-          {fieldErrors.confidence && <InlineError>{fieldErrors.confidence}</InlineError>}
+          {fieldErrors.confidence && (
+            <InlineError>{fieldErrors.confidence}</InlineError>
+          )}
         </div>
 
         <label className="flex items-center gap-2">
@@ -137,7 +141,9 @@ export function FeatureEditor({
             }
             className="rounded border-gray-300 dark:border-gray-600"
           />
-          <span className="text-sm text-gray-700 dark:text-gray-200">Confirm feature</span>
+          <span className="text-sm text-gray-700 dark:text-gray-200">
+            Confirm feature
+          </span>
         </label>
 
         <div>
@@ -154,7 +160,9 @@ export function FeatureEditor({
           {/* TODO(phase-3): Wire OCR and classification suggestions through adapters. */}
         </div>
 
-        {fieldErrors.general && <InlineError>{fieldErrors.general}</InlineError>}
+        {fieldErrors.general && (
+          <InlineError>{fieldErrors.general}</InlineError>
+        )}
       </div>
     </section>
   );

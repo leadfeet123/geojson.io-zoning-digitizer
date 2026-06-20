@@ -94,8 +94,8 @@ export interface ImportOptions {
     latitudeHeader: string | null;
     /** For WKT / GeoJSON kind */
     geometryHeader: string | null;
-    kind: typeof CSV_KINDS[number]['value'];
-    delimiter: typeof CSV_DELIMITERS[number]['value'];
+    kind: (typeof CSV_KINDS)[number]['value'];
+    delimiter: (typeof CSV_DELIMITERS)[number]['value'];
     autoType: boolean;
   };
 }

@@ -8,6 +8,7 @@ description: Scaffold the initial Phase 1 thin vertical slice of the zoning digi
 You are a senior geospatial web developer working on a fork of geojson.io.
 
 **Before writing any code, read these files in order:**
+
 1. `ARCHITECTURE.md`
 2. `MODIFICATION_STRATEGY.md`
 3. `AGENTS.md`
@@ -44,16 +45,19 @@ when the user enters digitizer mode.
 ### Step 2 — Add digitizer state atoms
 
 Create `state/digitizer.ts` with Jotai atoms:
+
 - `digitizerModeAtom` — boolean, default false
 - `activePdfAtom` — stores `{ file: File, pageCount: number } | null`
 - `activePdfPageAtom` — number, default 1
 
 Create `state/digitizer_features.ts` with Jotai atoms:
+
 - `digitizerFeaturesAtom` — array of digitizer features (see schema below)
 
 ### Step 3 — Add the validation engine stub
 
 Create `app/lib/validation_engine.ts`:
+
 - Export a `validateFeature(feature: DigitizerFeature): ValidationResult` function
 - Export a `validateFeatureCollection(features: DigitizerFeature[]): ValidationResult[]` function
 - Implement checks: required fields present, confidence in range [0,1],
@@ -63,6 +67,7 @@ Create `app/lib/validation_engine.ts`:
 ### Step 4 — Add the export pipeline
 
 Create `app/lib/export_pipeline.ts`:
+
 - Export a `toGeoJSON(features: DigitizerFeature[], sourceName: string): GeoJSON.FeatureCollection`
 - Enforce the output schema from `ARCHITECTURE.md`
 - Set `source_type: "digitized"` and `digitized_at` to the current ISO 8601 timestamp
@@ -71,6 +76,7 @@ Create `app/lib/export_pipeline.ts`:
 ### Step 5 — Add the PDF viewer component scaffold
 
 Create `app/components/pdf_viewer/PdfViewer.tsx`:
+
 - Accept a `file: File | null` prop
 - When file is null, render an upload prompt ("Drop a PDF or click to open")
 - When file is present, render the first page of the PDF on a `<canvas>` element
@@ -82,6 +88,7 @@ Create `app/components/pdf_viewer/PdfViewer.tsx`:
 ### Step 6 — Add the feature editor panel scaffold
 
 Create `app/components/feature_editor/FeatureEditor.tsx`:
+
 - Show when a polygon is selected on the map (in digitizer mode)
 - Inputs: `raw_zoning_label` (text), `planning_class` (text or select), `notes` (textarea)
 - Show validation errors inline if fields are missing or invalid
@@ -93,6 +100,7 @@ Create `app/components/feature_editor/FeatureEditor.tsx`:
 ### Step 7 — Integrate the split-panel layout
 
 Modify `pages/index.tsx` minimally:
+
 - Add a toggle button ("Open Digitizer") that sets `digitizerModeAtom` to true
 - When digitizer mode is active, render a two-column layout:
   left: `PdfViewer`, right: existing map
@@ -105,6 +113,7 @@ existing layout. Choose the approach that causes the smallest diff.
 ### Step 8 — Add Export action
 
 Add an "Export Zoning GeoJSON" button to the menu or feature editor panel:
+
 - Calls `validateFeatureCollection` — shows errors if any exist
 - Calls `toGeoJSON` with current digitizer features
 - Triggers a file download (`.geojson`)
@@ -122,27 +131,27 @@ export interface DigitizerFeature {
   properties: {
     planning_class: string;
     raw_zoning_label: string;
-    confidence: number;        // 0.0–1.0
-    source_type: "digitized";
+    confidence: number; // 0.0–1.0
+    source_type: 'digitized';
     source_name: string;
     human_confirmed: boolean;
     notes?: string;
     digitized_at?: string;
     digitized_by?: string;
-    ai_suggestions?: AiSuggestion[];  // Phase 3; optional
+    ai_suggestions?: AiSuggestion[]; // Phase 3; optional
   };
 }
 
 export interface AiSuggestion {
-  field: "raw_zoning_label" | "planning_class";
+  field: 'raw_zoning_label' | 'planning_class';
   value: string;
   confidence: number;
-  accepted: boolean | null;  // null = pending review
+  accepted: boolean | null; // null = pending review
 }
 
 export interface ValidationResult {
   featureId: string | null;
-  severity: "error" | "warning";
+  severity: 'error' | 'warning';
   message: string;
   field?: string;
 }

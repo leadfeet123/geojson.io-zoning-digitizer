@@ -18,6 +18,8 @@ describe('georef_suggestion_adapter', () => {
 
     expect(suggestions).toHaveLength(4);
     expect(suggestions.every((s) => s.pdf.page === 3)).toBe(true);
-    expect(suggestions.every((s) => s.confidence >= 0 && s.confidence <= 1)).toBe(true);
+    expect(
+      suggestions.every((s) => s.confidence >= 0 && s.confidence <= 1)
+    ).toBe(true);
   });
 });

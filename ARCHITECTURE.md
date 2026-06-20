@@ -82,12 +82,14 @@ Feature Editor panel. The core map editing capabilities of geojson.io must be pr
 ## Main Technical Modules
 
 ### 1. PDF Document Viewer
+
 - Renders PDF pages in the browser using **PDF.js** (or a thin wrapper)
 - Exposes PDF coordinate space (page pixels) for GCP selection
 - Supports page navigation, zoom, and pan
 - File: `app/components/pdf_viewer/`
 
 ### 2. Control Point Manager
+
 - Stores matched pairs of (PDF pixel coordinates, WGS-84 lon/lat)
 - Minimum 3 GCPs for affine transform; 4+ for projective
 - UI: click-to-place markers on PDF panel and map panel in a linked mode
@@ -96,6 +98,7 @@ Feature Editor panel. The core map editing capabilities of geojson.io must be pr
 - State: `state/control_points.ts`
 
 ### 3. Georeferencing / Transform Engine
+
 - Accepts an array of GCP pairs
 - Computes the best-fit transform (affine or projective)
 - Exposes `transformPoint(pdfX, pdfY) → [lon, lat]`
@@ -104,12 +107,14 @@ Feature Editor panel. The core map editing capabilities of geojson.io must be pr
 - File: `app/lib/transform_engine.ts`
 
 ### 4. Polygon Editor
+
 - Built on top of existing geojson.io draw/edit capabilities (Mapbox Draw)
 - Extended with: snapping to parcel edges, duplicate-vertex detection,
   topology checks (overlap, gap detection within a batch)
 - File: `app/components/polygon_editor/`
 
 ### 5. OCR and Label Suggestion Service Interface
+
 - **Interface only** until a backend adapter is wired in (Phase 3+)
 - Accepts: a clipped region of the PDF canvas (bitmap or PDF page crop)
 - Returns: `{ text: string, confidence: number }[]`
@@ -117,6 +122,7 @@ Feature Editor panel. The core map editing capabilities of geojson.io must be pr
 - File: `app/lib/ocr_adapter.ts` (interface + null adapter)
 
 ### 6. Classification Suggestion Interface
+
 - **Interface only** until an AI adapter is wired in (Phase 3+)
 - Accepts: `raw_zoning_label: string`, optional municipality context
 - Returns: `{ planning_class: string, confidence: number, rationale: string }[]`
@@ -124,6 +130,7 @@ Feature Editor panel. The core map editing capabilities of geojson.io must be pr
 - File: `app/lib/classification_adapter.ts` (interface + lookup-table adapter)
 
 ### 7. Validation Engine
+
 - Checks individual features: geometry validity, required fields present,
   planning_class in allowed vocabulary, confidence threshold met
 - Checks feature collection: no unresolved overlaps within same planning_class,
@@ -131,6 +138,7 @@ Feature Editor panel. The core map editing capabilities of geojson.io must be pr
 - File: `app/lib/validation_engine.ts`
 
 ### 8. Export Pipeline
+
 - Converts internal Jotai state → GeoJSON FeatureCollection
 - Enforces output schema (see below)
 - Strips internal-only fields (GCPs, UI state)
@@ -141,16 +149,16 @@ Feature Editor panel. The core map editing capabilities of geojson.io must be pr
 
 ## Recommended Technology Boundaries
 
-| Concern | Boundary |
-|---|---|
-| PDF rendering | Browser only — PDF.js WASM |
-| Map rendering | Browser only — existing Mapbox GL / MapLibre |
-| Coordinate transform | Browser only — pure TS, no server call |
-| Polygon editing | Browser only — Mapbox Draw (existing geojson.io) |
-| OCR / label extraction | Behind `OcrAdapter` interface — can be WASM or HTTP |
+| Concern                   | Boundary                                                              |
+| ------------------------- | --------------------------------------------------------------------- |
+| PDF rendering             | Browser only — PDF.js WASM                                            |
+| Map rendering             | Browser only — existing Mapbox GL / MapLibre                          |
+| Coordinate transform      | Browser only — pure TS, no server call                                |
+| Polygon editing           | Browser only — Mapbox Draw (existing geojson.io)                      |
+| OCR / label extraction    | Behind `OcrAdapter` interface — can be WASM or HTTP                   |
 | Classification suggestion | Behind `ClassificationAdapter` interface — can be lookup table or LLM |
-| Validation | Browser only — deterministic rules |
-| Export | Browser only — deterministic serialization |
+| Validation                | Browser only — deterministic rules                                    |
+| Export                    | Browser only — deterministic serialization                            |
 
 **Never introduce a required backend server.** Optional AI integrations must degrade gracefully
 (i.e., the tool must remain fully functional with both adapters returning null/empty results).
@@ -191,6 +199,7 @@ and must be flagged in a PR description.
 State follows the existing Jotai pattern used throughout geojson.io.
 
 New atoms will be added in `state/` for:
+
 - `state/digitizer.ts` — digitizer session state (PDF file, GCPs, active page)
 - `state/control_points.ts` — GCP pairs (PDF coords ↔ map coords)
 - `state/digitizer_features.ts` — features under active digitization (before export)
@@ -229,13 +238,13 @@ test/
 
 ## Integration Points with Existing geojson.io Code
 
-| geojson.io module | Digitizer integration |
-|---|---|
-| `app/components/map_component.tsx` | Extended with PDF overlay layer and GCP marker layer |
-| `app/components/panel_details.tsx` | May be replaced or augmented by `feature_editor/` |
-| `state/index.ts` | New atoms imported alongside existing atoms |
-| `app/components/menu_bar.tsx` | New "Open PDF" and "Export Zoning GeoJSON" actions |
-| Export functions (existing) | Superseded by `export_pipeline.ts` for digitizer mode |
+| geojson.io module                  | Digitizer integration                                 |
+| ---------------------------------- | ----------------------------------------------------- |
+| `app/components/map_component.tsx` | Extended with PDF overlay layer and GCP marker layer  |
+| `app/components/panel_details.tsx` | May be replaced or augmented by `feature_editor/`     |
+| `state/index.ts`                   | New atoms imported alongside existing atoms           |
+| `app/components/menu_bar.tsx`      | New "Open PDF" and "Export Zoning GeoJSON" actions    |
+| Export functions (existing)        | Superseded by `export_pipeline.ts` for digitizer mode |
 
 The digitizer must be activatable as a **mode** so that the standard geojson.io editing
 workflow remains available when the digitizer is not active.

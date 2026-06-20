@@ -85,8 +85,8 @@ export function detectColumns(columns: string[]): ImportOptions['csvOptions'] {
     geometryHeader: hasPolylineColumn
       ? 'polyline'
       : hasWktColumn
-      ? 'wkt'
-      : singleColumn,
+        ? 'wkt'
+        : singleColumn,
     sheet: '',
     autoType: true
   };

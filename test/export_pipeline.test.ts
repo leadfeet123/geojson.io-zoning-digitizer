@@ -2,7 +2,9 @@ import { toGeoJSON } from 'app/lib/export_pipeline';
 import type { DigitizerFeature } from 'types/digitizer';
 import { describe, expect, it } from 'vitest';
 
-function makeFeature(overrides: Partial<DigitizerFeature> = {}): DigitizerFeature {
+function makeFeature(
+  overrides: Partial<DigitizerFeature> = {}
+): DigitizerFeature {
   return {
     id: 'feature-1',
     geometry: {
@@ -81,7 +83,11 @@ describe('export_pipeline', () => {
       }
     });
 
-    const result = toGeoJSON([feature], 'new.pdf', new Date('2026-01-01T00:00:00.000Z'));
+    const result = toGeoJSON(
+      [feature],
+      'new.pdf',
+      new Date('2026-01-01T00:00:00.000Z')
+    );
 
     expect(result.features[0].properties).toEqual(
       expect.objectContaining({
@@ -92,7 +98,11 @@ describe('export_pipeline', () => {
   });
 
   it('exports an empty collection when there are no features', () => {
-    const result = toGeoJSON([], 'empty.pdf', new Date('2026-06-15T12:00:00.000Z'));
+    const result = toGeoJSON(
+      [],
+      'empty.pdf',
+      new Date('2026-06-15T12:00:00.000Z')
+    );
 
     expect(result).toEqual({
       type: 'FeatureCollection',

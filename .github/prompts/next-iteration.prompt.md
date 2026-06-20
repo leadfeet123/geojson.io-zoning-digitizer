@@ -70,21 +70,25 @@ State your next action in one sentence before beginning.
 Follow these rules during implementation:
 
 ### Scope
+
 - Stay within the current phase scope (see `MODIFICATION_STRATEGY.md`)
 - If something is out of scope, add a `// TODO(phase-N):` comment and move on
 - Do not begin the next phase in the same iteration
 
 ### Code quality
+
 - No `any` without a type guard and comment
 - No inline transform math in components — use `app/lib/transform_engine.ts`
 - No direct API calls from components — use adapter interfaces
 - No new packages without justification
 
 ### Preservation
+
 - Confirm after your change that standard geojson.io mode still loads and works
 - Do not delete or skip existing passing tests
 
 ### Human confirmability
+
 - Any AI-suggested field must surface a confidence score
 - Any feature with `confidence < 0.5` must be visually flagged
 - `human_confirmed` must only be set via explicit user action

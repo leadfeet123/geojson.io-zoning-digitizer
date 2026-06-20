@@ -6,8 +6,10 @@ import type { PropsWithoutRef, ReactNode } from 'react';
 import { useState } from 'react';
 import type { z } from 'zod';
 
-interface FormProps<S extends z.ZodType<any, any>>
-  extends Omit<PropsWithoutRef<JSX.IntrinsicElements['form']>, 'onSubmit'> {
+interface FormProps<S extends z.ZodType<any, any>> extends Omit<
+  PropsWithoutRef<JSX.IntrinsicElements['form']>,
+  'onSubmit'
+> {
   children?: ReactNode;
   submitText?: string;
   schema?: S;

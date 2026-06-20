@@ -53,11 +53,11 @@ export const USelection = {
     return ids.length === 0
       ? { type: 'none' }
       : ids.length === 1
-      ? this.single(ids[0])
-      : {
-          type: 'multi',
-          ids
-        };
+        ? this.single(ids[0])
+        : {
+            type: 'multi',
+            ids
+          };
   },
   /**
    * Get selected features of a single or multi selection.

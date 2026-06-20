@@ -360,8 +360,8 @@ function sharedStyle({
     selected === 'direct'
       ? 'bg-opacity-20 bg-mb-blue-300 dark:bg-purple-800'
       : selected === 'secondary'
-      ? 'bg-opacity-20 bg-purple-200 dark:bg-mb-blue-700'
-      : `hover:bg-gray-100 dark:hover:bg-gray-700 focus:bg-gray-200 dark:focus:bg-gray-700`,
+        ? 'bg-opacity-20 bg-purple-200 dark:bg-mb-blue-700'
+        : `hover:bg-gray-100 dark:hover:bg-gray-700 focus:bg-gray-200 dark:focus:bg-gray-700`,
     overlay ? 'px-4 rounded-sm ring-1 ring-gray-500 shadow-md opacity-60' : ''
   );
 }

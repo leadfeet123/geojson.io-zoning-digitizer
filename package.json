@@ -104,6 +104,7 @@
     "lodash": "^4.17.21",
     "mapbox-gl": "3.24.0",
     "memoize-one": "^6.0.0",
+    "ml-matrix": "^6.12.2",
     "mproj": "^0.0.40",
     "nanoid": "^5.1.5",
     "optics-ts": "^2.4.1",

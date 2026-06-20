@@ -938,8 +938,7 @@ function get_opt(params, args) {
     key
   ) {
     return memo || key in params;
-  },
-  false);
+  }, false);
   Object.keys(newParams).forEach(function (key) {
     // don't override existing params
     if (key in params) return;
@@ -5781,8 +5780,8 @@ GeographicLib.PolygonArea = {};
       lon1 <= 0 && lon2 > 0 && lon12 > 0
         ? 1
         : lon2 <= 0 && lon1 > 0 && lon12 < 0
-        ? -1
-        : 0;
+          ? -1
+          : 0;
     return cross;
   };
 
@@ -8097,8 +8096,8 @@ function pj_sinu_init(P, m, n) {
     lp.phi = m
       ? aasin((m * xy.y + sin(xy.y)) / n)
       : n != 1
-      ? aasin(sin(xy.y) / n)
-      : xy.y;
+        ? aasin(sin(xy.y) / n)
+        : xy.y;
     lp.lam = xy.x / (C_x * (m + cos(xy.y)));
   }
 }
@@ -8942,7 +8941,7 @@ function pj_hill(P) {
       theta = acos(cosTheta),
       sinTheta = sin(theta),
       Bt_Bt1 = Bt + atan2(sinTheta, L - cosTheta);
-    (lp.lam = (asin(x / sqrt(rho2)) * M_PI) / Bt_Bt1),
+    ((lp.lam = (asin(x / sqrt(rho2)) * M_PI) / Bt_Bt1),
       (lp.phi = asin(
         1 -
           (2 *
@@ -8951,7 +8950,7 @@ function pj_hill(P) {
               L * sinTheta +
               (1 + L2 - 2 * L * cosTheta) * Bt_Bt1)) /
             B
-      ));
+      )));
   }
 }
 
@@ -10837,8 +10836,8 @@ function pj_ortho(P) {
           ? xy.x == 0
             ? 0
             : xy.x < 0
-            ? -M_HALFPI
-            : M_HALFPI
+              ? -M_HALFPI
+              : M_HALFPI
           : atan2(xy.x, xy.y);
     }
   }
