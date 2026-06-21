@@ -151,10 +151,10 @@ function getFamily(features: Feature[]): MergeableFamilies | null {
   return inFamily(geometryTypes, ['Polygon', 'MultiPolygon'])
     ? 'Polygon'
     : inFamily(geometryTypes, ['LineString', 'MultiLineString'])
-    ? 'LineString'
-    : inFamily(geometryTypes, ['Point', 'MultiPoint'])
-    ? 'Point'
-    : null;
+      ? 'LineString'
+      : inFamily(geometryTypes, ['Point', 'MultiPoint'])
+        ? 'Point'
+        : null;
 }
 
 export function mergeFeaturesMessage(features: Feature[]): string {

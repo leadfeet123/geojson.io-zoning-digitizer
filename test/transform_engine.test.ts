@@ -21,7 +21,11 @@ function makeKnownTransform(): AffineTransform {
   };
 }
 
-function makePoint(transform: AffineTransform, x: number, y: number): TransformControlPoint {
+function makePoint(
+  transform: AffineTransform,
+  x: number,
+  y: number
+): TransformControlPoint {
   const map = transformPoint(transform, { x, y });
 
   return {
@@ -86,6 +90,8 @@ describe('transform_engine', () => {
           map: { lon: -122.4, lat: 37.8 }
         }
       ])
-    ).toThrow('At least 3 control points are required to solve affine transform');
+    ).toThrow(
+      'At least 3 control points are required to solve affine transform'
+    );
   });
 });

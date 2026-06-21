@@ -40,8 +40,8 @@ export function FeatureEditorId({
                 values.id === ''
                   ? undefined
                   : Number.isNaN(+values.id)
-                  ? values.id
-                  : +values.id;
+                    ? values.id
+                    : +values.id;
               await transact({
                 note: 'Updated a feature’s id',
                 putFeatures: [

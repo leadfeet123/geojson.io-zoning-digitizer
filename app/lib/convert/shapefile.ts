@@ -107,18 +107,14 @@ interface Obj {
 }
 
 async function importAndReproject(obj: Obj) {
-  const { importContent } = await import(
-    'vendor/mapshaper/io/mapshaper-import'
-  );
-  const { exportFileContent } = await import(
-    'vendor/mapshaper/io/mapshaper-export'
-  );
-  const { projectDataset } = await import(
-    'vendor/mapshaper/commands/mapshaper-proj'
-  );
-  const { parsePrj } = await import(
-    'vendor/mapshaper/crs/mapshaper-projections'
-  );
+  const { importContent } =
+    await import('vendor/mapshaper/io/mapshaper-import');
+  const { exportFileContent } =
+    await import('vendor/mapshaper/io/mapshaper-export');
+  const { projectDataset } =
+    await import('vendor/mapshaper/commands/mapshaper-proj');
+  const { parsePrj } =
+    await import('vendor/mapshaper/crs/mapshaper-projections');
 
   const out = importContent(obj);
 
@@ -246,12 +242,10 @@ class CShapefile implements FileType {
   back({ geojson }: { geojson: FeatureCollection }, _options: ExportOptions) {
     return EitherAsync<ConvertError, ExportResult>(
       async function backShapefile() {
-        const { importContent } = await import(
-          'vendor/mapshaper/io/mapshaper-import'
-        );
-        const { exportFileContent } = await import(
-          'vendor/mapshaper/io/mapshaper-export'
-        );
+        const { importContent } =
+          await import('vendor/mapshaper/io/mapshaper-import');
+        const { exportFileContent } =
+          await import('vendor/mapshaper/io/mapshaper-export');
         const fflate = await import('fflate');
 
         const out = importContent({

@@ -6,7 +6,7 @@ import { styledSelect } from './elements';
 export function UnitOptionsGroups({
   groups
 }: {
-  groups: typeof GROUPED_UNIT_OPTIONS['area' | 'length'];
+  groups: (typeof GROUPED_UNIT_OPTIONS)['area' | 'length'];
 }) {
   return (
     <>

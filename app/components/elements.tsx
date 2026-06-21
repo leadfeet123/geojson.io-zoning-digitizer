@@ -515,9 +515,9 @@ export const styledButton = ({
       dark:aria-expanded:bg-mb-blue-300
     data-state-on:bg-purple-400 dark:data-state-on:bg-gray-900`
       : variant === 'primary'
-      ? `aria-expanded:bg-mb-blue-300
+        ? `aria-expanded:bg-mb-blue-300
     data-state-on:bg-mb-blue-300`
-      : `
+        : `
     aria-expanded:bg-gray-200 dark:aria-expanded:bg-black
     data-state-on:bg-gray-200 dark:data-state-on:bg-gray-600`,
     'disabled:opacity-50 disabled:cursor-not-allowed',

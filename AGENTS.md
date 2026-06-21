@@ -19,6 +19,7 @@ processing pipeline.
 replace human judgment or silently modify confirmed work.
 
 **Primary reference documents (read before acting):**
+
 - `ARCHITECTURE.md` — module design, output schema, UI regions
 - `MODIFICATION_STRATEGY.md` — phased delivery plan with success criteria
 
@@ -32,6 +33,7 @@ The codebase is at its starting point. The digitizer modules described in `ARCHI
 do not yet exist. The standard geojson.io editor functionality is fully intact.
 
 **Current goals:**
+
 1. Scaffold the split-panel layout (PDF viewer + map)
 2. Add the feature editor panel with schema-compliant fields
 3. Add the export pipeline with the planning output schema
@@ -75,6 +77,7 @@ These rules are non-negotiable:
 ## Coding Conventions
 
 ### Language and Framework
+
 - TypeScript strict mode. No `any` unless behind a type guard.
 - React functional components with hooks. No class components.
 - Jotai for state management. New atoms go in `state/`. Do not use React context
@@ -83,28 +86,33 @@ These rules are non-negotiable:
   express the style.
 
 ### File Structure
+
 Follow the target directory layout in `ARCHITECTURE.md`. New modules go in their
 designated directories. Do not create flat top-level files for modules that belong
 in `app/lib/` or `app/components/`.
 
 ### Testing
+
 - All pure logic modules (`transform_engine`, `validation_engine`, `export_pipeline`,
   adapter interfaces) must have co-located or `test/`-housed unit tests.
 - Tests must use the existing test runner (Vitest, as per `package.json`).
 - A PR that adds a new lib module without tests will be rejected.
 
 ### Naming
+
 - Components: `PascalCase` files and exports (`PdfViewer.tsx`)
 - Lib modules: `snake_case` files (`transform_engine.ts`)
 - State atoms: `camelCase` with `Atom` suffix (`gcpPairsAtom`)
 - Constants: `SCREAMING_SNAKE_CASE`
 
 ### Imports
+
 - Use TypeScript path aliases (`@/`) where configured.
 - Do not use relative `../../` imports across major module boundaries (e.g., from
   `components/` into `state/` via a long relative path). Use the alias.
 
 ### Comments
+
 - Add a JSDoc comment to every exported function and type in `app/lib/`.
 - Do not add comments to code that is self-explanatory. Prefer clear naming.
 - Add a `// TODO(phase-N):` comment on any stub or placeholder that is out of scope
@@ -114,46 +122,40 @@ in `app/lib/` or `app/components/`.
 
 ## File Ownership Guidance
 
-| Path | Ownership | Notes |
-|---|---|---|
-| `ARCHITECTURE.md` | Human architect | Do not rewrite without human review |
-| `MODIFICATION_STRATEGY.md` | Human architect | Do not rewrite without human review |
-| `AGENTS.md` | Human architect | Do not rewrite without human review |
-| `app/lib/transform_engine.ts` | Coding agent (Phase 2) | Pure math — must have tests |
-| `app/lib/ocr_adapter.ts` | Coding agent (Phase 3) | Interface + null adapter only |
-| `app/lib/classification_adapter.ts` | Coding agent (Phase 3) | Interface + lookup table only |
-| `app/lib/validation_engine.ts` | Coding agent (Phase 1) | Must have tests |
-| `app/lib/export_pipeline.ts` | Coding agent (Phase 1) | Must have tests |
-| `app/components/pdf_viewer/` | Coding agent (Phase 1) | UI only; no transform logic |
-| `app/components/control_points/` | Coding agent (Phase 2) | UI only; no transform logic |
-| `state/digitizer.ts` | Coding agent (Phase 1) | Jotai atoms only |
-| `state/control_points.ts` | Coding agent (Phase 2) | Jotai atoms only |
-| `pages/index.tsx` | Coding agent (careful) | Minimal change; add mode flag only |
-| `app/components/map_component.tsx` | Coding agent (careful) | Extend, do not rewrite |
-| `app/components/menu_bar.tsx` | Coding agent (careful) | Add actions; do not remove existing |
+| Path                                | Ownership              | Notes                               |
+| ----------------------------------- | ---------------------- | ----------------------------------- |
+| `ARCHITECTURE.md`                   | Human architect        | Do not rewrite without human review |
+| `MODIFICATION_STRATEGY.md`          | Human architect        | Do not rewrite without human review |
+| `AGENTS.md`                         | Human architect        | Do not rewrite without human review |
+| `app/lib/transform_engine.ts`       | Coding agent (Phase 2) | Pure math — must have tests         |
+| `app/lib/ocr_adapter.ts`            | Coding agent (Phase 3) | Interface + null adapter only       |
+| `app/lib/classification_adapter.ts` | Coding agent (Phase 3) | Interface + lookup table only       |
+| `app/lib/validation_engine.ts`      | Coding agent (Phase 1) | Must have tests                     |
+| `app/lib/export_pipeline.ts`        | Coding agent (Phase 1) | Must have tests                     |
+| `app/components/pdf_viewer/`        | Coding agent (Phase 1) | UI only; no transform logic         |
+| `app/components/control_points/`    | Coding agent (Phase 2) | UI only; no transform logic         |
+| `state/digitizer.ts`                | Coding agent (Phase 1) | Jotai atoms only                    |
+| `state/control_points.ts`           | Coding agent (Phase 2) | Jotai atoms only                    |
+| `pages/index.tsx`                   | Coding agent (careful) | Minimal change; add mode flag only  |
+| `app/components/map_component.tsx`  | Coding agent (careful) | Extend, do not rewrite              |
+| `app/components/menu_bar.tsx`       | Coding agent (careful) | Add actions; do not remove existing |
 
 ---
 
 ## Iteration Rules
 
 Before starting any work:
+
 1. Read `ARCHITECTURE.md` and `MODIFICATION_STRATEGY.md`.
 2. Identify the current phase (check which Phase 1 success criteria are unchecked).
 3. Limit your changes to the current phase only.
 4. Prefer the smallest change that advances the success criteria.
 
-During implementation:
-5. If a change would touch a "careful" file (see ownership table), explain your reasoning
-   before making the change and keep the diff minimal.
-6. If a dependency is not yet in `package.json`, justify why it is necessary before adding it.
-7. If you are unsure whether a change belongs in the current phase, it probably does not.
-   Mark it with `// TODO(phase-N):` and move on.
-8. Never rewrite a module that already has passing tests without a documented reason.
+During implementation: 5. If a change would touch a "careful" file (see ownership table), explain your reasoning
+before making the change and keep the diff minimal. 6. If a dependency is not yet in `package.json`, justify why it is necessary before adding it. 7. If you are unsure whether a change belongs in the current phase, it probably does not.
+Mark it with `// TODO(phase-N):` and move on. 8. Never rewrite a module that already has passing tests without a documented reason.
 
-After implementation:
-9. Confirm that `npm run build` (or equivalent) still passes.
-10. Confirm that existing tests still pass.
-11. Confirm that the digitizer mode can be entered and exited without breaking the baseline editor.
+After implementation: 9. Confirm that `npm run build` (or equivalent) still passes. 10. Confirm that existing tests still pass. 11. Confirm that the digitizer mode can be entered and exited without breaking the baseline editor.
 
 ---
 
@@ -162,22 +164,26 @@ After implementation:
 Agents must verify the following before declaring a task complete:
 
 ### Schema validation
+
 - Every exported feature has all required fields from the output schema.
 - `source_type` is always the string `"digitized"`.
 - `human_confirmed` is always a boolean, not a string.
 - `confidence` is always a number between 0.0 and 1.0.
 
 ### Geometry validation
+
 - All exported geometries are valid GeoJSON (`Polygon` or `MultiPolygon`).
 - No self-intersecting rings.
 - Coordinates are in WGS-84 (lon/lat), not PDF pixel space.
 
 ### UI validation
+
 - The left PDF panel and right map panel render without errors when a PDF is loaded.
 - The baseline geojson.io editor still works when no PDF is loaded.
 - All new UI controls have accessible labels (aria attributes or visible text labels).
 
 ### Test validation
+
 - All unit tests pass.
 - No tests have been deleted or skipped to make the suite pass.
 
@@ -203,11 +209,11 @@ and a minimal diff:
 
 Agents must document non-obvious assumptions here when they are made.
 
-| Date | Assumption | Made by | Validated? |
-|---|---|---|---|
-| initial | PDF.js (`pdfjs-dist`) will be the PDF rendering library | architect | No — evaluate in Phase 1 |
-| initial | Transform engine will use a direct linear least-squares affine solve | architect | No — validate in Phase 2 |
-| initial | Tesseract.js is the OCR library for Phase 3 (evaluate accuracy on zoning text) | architect | No — evaluate in Phase 3 |
+| Date    | Assumption                                                                             | Made by   | Validated?                      |
+| ------- | -------------------------------------------------------------------------------------- | --------- | ------------------------------- |
+| initial | PDF.js (`pdfjs-dist`) will be the PDF rendering library                                | architect | No — evaluate in Phase 1        |
+| initial | Transform engine will use a direct linear least-squares affine solve                   | architect | No — validate in Phase 2        |
+| initial | Tesseract.js is the OCR library for Phase 3 (evaluate accuracy on zoning text)         | architect | No — evaluate in Phase 3        |
 | initial | The downstream Python pipeline consumes GeoJSON matching the schema in ARCHITECTURE.md | architect | No — confirm with pipeline team |
 
 ---

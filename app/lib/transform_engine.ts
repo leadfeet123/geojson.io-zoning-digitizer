@@ -1,3 +1,4 @@
+import { Matrix, solve } from 'ml-matrix';
 export interface PdfCoordinate {
   x: number;
   y: number;
@@ -48,15 +49,17 @@ export function solveAffineTransform(
   controlPoints: TransformControlPoint[]
 ): TransformSolveResult {
   if (controlPoints.length < 3) {
-    throw new Error('At least 3 control points are required to solve affine transform');
+    throw new Error(
+      'At least 3 control points are required to solve affine transform'
+    );
   }
 
   const aRows = controlPoints.map((point) => [point.pdf.x, point.pdf.y, 1]);
   const lonValues = controlPoints.map((point) => point.map.lon);
   const latValues = controlPoints.map((point) => point.map.lat);
 
-  const lonParams = solveLeastSquares3(aRows, lonValues);
-  const latParams = solveLeastSquares3(aRows, latValues);
+  const lonParams = solveAffineParams(aRows, lonValues);
+  const latParams = solveAffineParams(aRows, latValues);
 
   const transform: AffineTransform = {
     lon: {
@@ -103,75 +106,28 @@ export function transformPoint(
   point: PdfCoordinate
 ): LonLatCoordinate {
   return {
-    lon: transform.lon.a * point.x + transform.lon.b * point.y + transform.lon.c,
+    lon:
+      transform.lon.a * point.x + transform.lon.b * point.y + transform.lon.c,
     lat: transform.lat.d * point.x + transform.lat.e * point.y + transform.lat.f
   };
 }
 
-function solveLeastSquares3(aRows: number[][], bValues: number[]): [number, number, number] {
-  const ata = [
-    [0, 0, 0],
-    [0, 0, 0],
-    [0, 0, 0]
-  ];
-  const atb = [0, 0, 0];
+function solveAffineParams(
+  aRows: number[][],
+  bValues: number[]
+): [number, number, number] {
+  const A = new Matrix(aRows);
+  const B = new Matrix(bValues.map((val) => [val]));
 
-  for (let i = 0; i < aRows.length; i++) {
-    const row = aRows[i];
-    const value = bValues[i];
-
-    for (let r = 0; r < 3; r++) {
-      atb[r] += row[r] * value;
-
-      for (let c = 0; c < 3; c++) {
-        ata[r][c] += row[r] * row[c];
-      }
-    }
+  try {
+    const X = solve(A, B, true);
+    const result = X.to1DArray();
+    return [result[0], result[1], result[2]];
+  } catch (error) {
+    throw new Error(
+      'Control points are degenerate; could not solve affine transform'
+    );
   }
-
-  return solveLinear3x3(ata, atb);
-}
-
-function solveLinear3x3(matrix: number[][], vector: number[]): [number, number, number] {
-  const augmented = matrix.map((row, rowIndex) => [...row, vector[rowIndex]]);
-
-  for (let pivot = 0; pivot < 3; pivot++) {
-    let maxRow = pivot;
-
-    for (let row = pivot + 1; row < 3; row++) {
-      if (Math.abs(augmented[row][pivot]) > Math.abs(augmented[maxRow][pivot])) {
-        maxRow = row;
-      }
-    }
-
-    if (Math.abs(augmented[maxRow][pivot]) < 1e-12) {
-      throw new Error('Control points are degenerate; could not solve affine transform');
-    }
-
-    if (maxRow !== pivot) {
-      const temp = augmented[pivot];
-      augmented[pivot] = augmented[maxRow];
-      augmented[maxRow] = temp;
-    }
-
-    const pivotValue = augmented[pivot][pivot];
-    for (let col = pivot; col < 4; col++) {
-      augmented[pivot][col] /= pivotValue;
-    }
-
-    for (let row = 0; row < 3; row++) {
-      if (row === pivot) {
-        continue;
-      }
-
-      const factor = augmented[row][pivot];
-      for (let col = pivot; col < 4; col++) {
-        augmented[row][col] -= factor * augmented[pivot][col];
-      }
-    }
-  }
-
-  return [augmented[0][3], augmented[1][3], augmented[2][3]];
 }
 
 function haversineDistanceMeters(

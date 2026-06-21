@@ -2,8 +2,8 @@
 
 You can interact with geojson.io programmatically in two ways:
 
-* [URL parameters](#url-api)
-* [Browser console](#console-api)
+- [URL parameters](#url-api)
+- [Browser console](#console-api)
 
 ## URL API
 
@@ -71,7 +71,6 @@ https://geojson.io/#id=github:benbalter/dc-wifi-social/blob/master/bars.geojson&
 
 Pop open your browser console and see the beautiful examples: geojson.io has started to expose a subset of its inner workings for you to mess around with:
 
-
 ### `window.api.map`
 
 The [Mapbox GL JS](https://docs.mapbox.com/mapbox-gl-js/guides/) map that you see and use on the site. See the [Mapbox GL JS API Reference](https://docs.mapbox.com/mapbox-gl-js/api/) for all the things you can do with it.
@@ -80,22 +79,20 @@ For instance, you could add another map source and layer:
 
 ```js
 window.api.map.addSource('raster-tiles', {
-    'type': 'raster',
-    'tiles': [
-    'https://stamen-tiles.a.ssl.fastly.net/watercolor/{z}/{x}/{y}.jpg'
-    ],
-    'tileSize': 256,
-    'attribution':
+  type: 'raster',
+  tiles: ['https://stamen-tiles.a.ssl.fastly.net/watercolor/{z}/{x}/{y}.jpg'],
+  tileSize: 256,
+  attribution:
     'Map tiles by <a target="_top" rel="noopener" href="https://stamen.com">Stamen Design</a>, under <a target="_top" rel="noopener" href="https://creativecommons.org/licenses/by/3.0">CC BY 3.0</a>. Data by <a target="_top" rel="noopener" href="https://openstreetmap.org">OpenStreetMap</a>, under <a target="_top" rel="noopener" href="https://creativecommons.org/licenses/by-sa/3.0">CC BY SA</a>'
-})
+});
 
 window.api.map.addLayer({
-    'id': 'simple-tiles',
-    'type': 'raster',
-    'source': 'raster-tiles',
-    'minzoom': 0,
-    'maxzoom': 22
-})
+  id: 'simple-tiles',
+  type: 'raster',
+  source: 'raster-tiles',
+  minzoom: 0,
+  maxzoom: 22
+});
 ```
 
 ### `window.api.data`

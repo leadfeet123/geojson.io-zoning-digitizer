@@ -77,7 +77,9 @@ export const MenuBar = memo(function MenuBar() {
     );
 
     if (blockingErrors.length > 0) {
-      toast.error(`Export blocked by ${blockingErrors.length} validation errors`);
+      toast.error(
+        `Export blocked by ${blockingErrors.length} validation errors`
+      );
       return;
     }
 

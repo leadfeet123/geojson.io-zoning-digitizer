@@ -14,7 +14,9 @@ import {
  */
 export function ControlPointMapCapture() {
   const pmap = useContext(MapContext);
-  const [placementMode, setPlacementMode] = useAtom(controlPointPlacementModeAtom);
+  const [placementMode, setPlacementMode] = useAtom(
+    controlPointPlacementModeAtom
+  );
   const [pendingPdfPoint, setPendingPdfPoint] = useAtom(pendingPdfPointAtom);
   const setControlPoints = useSetAtom(controlPointsAtom);
 
@@ -51,7 +53,14 @@ export function ControlPointMapCapture() {
       map.off('click', onClick);
       map.getCanvas().style.cursor = priorCursor;
     };
-  }, [pmap, placementMode, pendingPdfPoint, setControlPoints, setPendingPdfPoint, setPlacementMode]);
+  }, [
+    pmap,
+    placementMode,
+    pendingPdfPoint,
+    setControlPoints,
+    setPendingPdfPoint,
+    setPlacementMode
+  ]);
 
   return null;
 }

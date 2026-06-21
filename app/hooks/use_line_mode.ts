@@ -19,8 +19,8 @@ export function getContinuationDirection(
   return id.vertex === feature.geometry.coordinates.length - 1
     ? 'forward'
     : id.vertex === 0
-    ? 'reverse'
-    : null;
+      ? 'reverse'
+      : null;
 }
 
 type Direction = NonNullable<ReturnType<typeof getContinuationDirection>>;

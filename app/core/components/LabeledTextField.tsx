@@ -5,8 +5,9 @@ import { ErrorMessage, useField, useFormikContext } from 'formik';
 import type { PropsWithoutRef } from 'react';
 import { forwardRef } from 'react';
 
-interface LabeledTextFieldProps
-  extends PropsWithoutRef<JSX.IntrinsicElements['input']> {
+interface LabeledTextFieldProps extends PropsWithoutRef<
+  JSX.IntrinsicElements['input']
+> {
   name: string;
   label: string;
   type?: 'text' | 'password' | 'email' | 'number' | 'url';

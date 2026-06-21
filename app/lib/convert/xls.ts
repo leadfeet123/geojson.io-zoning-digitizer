@@ -12,9 +12,8 @@ class CXLS implements FileType {
   forwardBinary(file: ArrayBuffer, options: ImportOptions) {
     return EitherAsync<ConvertError, ConvertResult>(
       async function forwardXls() {
-        const { xlsxToGeoJSON } = await import(
-          'app/lib/convert/local/xlsx_to_geojson'
-        );
+        const { xlsxToGeoJSON } =
+          await import('app/lib/convert/local/xlsx_to_geojson');
         const geojson = await xlsxToGeoJSON(file, options.csvOptions);
         return okResult(geojson);
       }

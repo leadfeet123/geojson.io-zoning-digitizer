@@ -32,8 +32,8 @@ function applyOp(op: BooleanOp, features: Geom[]) {
   return op === 'union'
     ? union(features[0], ...features.slice(1))
     : op === 'intersection'
-    ? intersection(features[0], ...features.slice(1))
-    : difference(features[0], ...features.slice(1));
+      ? intersection(features[0], ...features.slice(1))
+      : difference(features[0], ...features.slice(1));
 }
 
 export function booleanFeatures(

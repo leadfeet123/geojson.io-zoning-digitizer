@@ -1,0 +1,10 @@
+refactor(transform_engine): replace custom least-squares solver with ml-matrix
+
+This replaces the handwritten `solveLeastSquares3` and `solveLinear3x3` matrix math routines in `app/lib/transform_engine.ts` with the robust `ml-matrix` library.
+
+The `ml-matrix` library uses stable linear system solving (specifically using the SVD fallback parameter `solve(A, B, true)`) to calculate the exact Affine Transformation Matrix required for mapping coordinate planes (PDF image coordinates to World WGS84 lon/lat space points).
+
+This implements the math requirement requested in:
+- "The Matrix: You now have 3-4 perfect pairs of data (Exact Canvas X/Y matches Exact Lat/Long). Use a JavaScript math library to calculate the Affine Transformation Matrix."
+
+Test suites continue to pass correctly with the updated mathematical library logic and no accuracy is lost.

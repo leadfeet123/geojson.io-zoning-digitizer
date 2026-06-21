@@ -5,7 +5,9 @@ import {
 import type { DigitizerFeature } from 'types/digitizer';
 import { describe, expect, it } from 'vitest';
 
-function makeFeature(overrides: Partial<DigitizerFeature> = {}): DigitizerFeature {
+function makeFeature(
+  overrides: Partial<DigitizerFeature> = {}
+): DigitizerFeature {
   return {
     id: 'feature-1',
     geometry: {

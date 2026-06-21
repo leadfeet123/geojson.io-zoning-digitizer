@@ -6,7 +6,10 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="theme-color" content="#000000" />
     <link rel="preconnect" href="https://api.mapbox.com/" />
-    <link rel="icon" href="https://static-assets.mapbox.com/branding/favicon/v2/favicon-32x32.png?v=gAd4JjrGWl" />
+    <link
+      rel="icon"
+      href="https://static-assets.mapbox.com/branding/favicon/v2/favicon-32x32.png?v=gAd4JjrGWl"
+    />
     <link rel="manifest" href="/manifest.json" />
     <link
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Code+Pro&family=Open+Sans:wght@400;700;800&display=swap"
@@ -15,10 +18,15 @@
     <!-- Add segment tracking for tool usage -->
     <script src="https://docs.mapbox.com/analytics.min.js"></script>
     <!-- Google Analytics -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=%VITE_GA_MEASUREMENT_ID%"></script>
+    <script
+      async
+      src="https://www.googletagmanager.com/gtag/js?id=%VITE_GA_MEASUREMENT_ID%"
+    ></script>
     <script>
       window.dataLayer = window.dataLayer || [];
-      function gtag(){dataLayer.push(arguments);}
+      function gtag() {
+        dataLayer.push(arguments);
+      }
       gtag('js', new Date());
       gtag('config', '%VITE_GA_MEASUREMENT_ID%');
     </script>
