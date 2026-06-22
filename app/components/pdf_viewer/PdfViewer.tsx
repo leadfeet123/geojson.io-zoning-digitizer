@@ -327,7 +327,7 @@ export function PdfViewer({
 
 
   const handleExtractShapes = useCallback(async () => {
-    if (!canvasRef.current || !extractedLegend || extractedLegend.length === 0) return;
+    if (!canvasRef.current || !extractedLegend || extractedLegend.zones.length === 0) return;
 
     // Check if we have enough confirmed GCPs for transform
     const confirmedGCPs = controlPoints.filter(p => p.confirmed);
@@ -339,7 +339,7 @@ export function PdfViewer({
     setIsExtractingShapes(true);
     try {
       const transform = solveAffineTransform(confirmedGCPs);
-      const extractedPolygons = await spatialExtractionEngine.extractShapes(canvasRef.current, extractedLegend);
+      const extractedPolygons = await spatialExtractionEngine.extractShapes(canvasRef.current, extractedLegend.zones);
 
       const newFeatures: DigitizerFeature[] = extractedPolygons.map(poly => {
         // Transform coordinates
@@ -364,7 +364,7 @@ export function PdfViewer({
             coordinates: [mapCoords]
           },
           properties: {
-            planning_class: poly.legendItem.zone,
+            planning_class: poly.legendItem.description,
             raw_zoning_label: poly.legendItem.code,
             confidence: 0.5,
             source_type: 'digitized',
@@ -456,9 +456,9 @@ export function PdfViewer({
           <button
             type="button"
             onClick={handleExtractShapes}
-            disabled={!extractedLegend || extractedLegend.length === 0 || isExtractingShapes}
+            disabled={!extractedLegend || extractedLegend.zones.length === 0 || isExtractingShapes}
             className="px-2 py-1 text-xs font-medium rounded bg-blue-100 border border-blue-300 dark:bg-blue-900 dark:border-blue-700 hover:bg-blue-200 dark:hover:bg-blue-800 text-blue-800 dark:text-blue-200 disabled:opacity-50"
-            title={!extractedLegend || extractedLegend.length === 0 ? 'Extract legend first' : 'Extract zoning shapes based on legend'}
+            title={!extractedLegend || extractedLegend.zones.length === 0 ? 'Extract legend first' : 'Extract zoning shapes based on legend'}
           >
             {isExtractingShapes ? 'Extracting Shapes...' : 'Extract Shapes'}
           </button>

@@ -153,7 +153,7 @@ export function FeatureEditor({
           <span className="text-xs font-medium uppercase tracking-wide text-gray-600 dark:text-gray-300">
             Extracted Legend Rules
           </span>
-          {extractedLegend && extractedLegend.length > 0 ? (
+          {extractedLegend && extractedLegend.zones.length > 0 ? (
             <div className="mt-2 space-y-2 max-h-48 overflow-y-auto">
               <table className="min-w-full text-xs text-left text-gray-600 dark:text-gray-300">
                 <thead className="bg-gray-50 dark:bg-gray-800">
@@ -170,7 +170,7 @@ export function FeatureEditor({
                   </tr>
                 </thead>
                 <tbody>
-                  {extractedLegend.map((item, i) => (
+                  {extractedLegend.zones.map((item, i) => (
                     <tr
                       key={i}
                       className="border-b border-gray-100 dark:border-gray-800"
@@ -185,9 +185,9 @@ export function FeatureEditor({
                       <td className="px-2 py-1">{item.code}</td>
                       <td
                         className="px-2 py-1 truncate max-w-[100px]"
-                        title={item.zone}
+                        title={item.description}
                       >
-                        {item.zone}
+                        {item.description}
                       </td>
                     </tr>
                   ))}

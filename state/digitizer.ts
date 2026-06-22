@@ -1,5 +1,5 @@
 import { atom } from 'jotai';
-import type { LegendItem } from 'app/lib/ocr_adapter';
+import type { LegendResult } from 'app/lib/ocr_adapter';
 
 export interface ActivePdfState {
   file: File;
@@ -24,4 +24,4 @@ export const activePdfPageAtom = atom(1);
 /**
  * Structured legend extracted via AI (Phase 3).
  */
-export const extractedLegendAtom = atom<LegendItem[] | null>(null);
+export const extractedLegendAtom = atom<LegendResult | null>(null);
