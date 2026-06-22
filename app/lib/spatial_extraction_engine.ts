@@ -10,6 +10,70 @@ export interface SpatialExtractionEngine {
   extractShapes(canvas: HTMLCanvasElement, legend: LegendItem[]): Promise<ExtractedPolygon[]>;
 }
 
+export function bridgeInternalGaps(
+  canvas: HTMLCanvasElement,
+  targetZoningHex: string,
+  boundaryLineHexColor?: string | null
+): any {
+  if (!cv || !cv.Mat) {
+    throw new Error('OpenCV.js not initialized.');
+  }
+
+  const boundaryHex = boundaryLineHexColor || '#000000';
+
+  const src = cv.imread(canvas);
+  const hsv = new cv.Mat();
+  cv.cvtColor(src, hsv, cv.COLOR_RGBA2RGB);
+  cv.cvtColor(hsv, hsv, cv.COLOR_RGB2HSV);
+
+  const { lowerBound: lowerZoning, upperBound: upperZoning } = getHsvBounds(
+    targetZoningHex,
+    hsv.rows,
+    hsv.cols,
+    hsv.type()
+  );
+  const zoningMask = new cv.Mat();
+  cv.inRange(hsv, lowerZoning, upperZoning, zoningMask);
+
+  const { lowerBound: lowerBoundary, upperBound: upperBoundary } = getHsvBounds(
+    boundaryHex,
+    hsv.rows,
+    hsv.cols,
+    hsv.type()
+  );
+  const boundaryMask = new cv.Mat();
+  cv.inRange(hsv, lowerBoundary, upperBoundary, boundaryMask);
+
+  const kernel = cv.getStructuringElement(
+    cv.MORPH_RECT,
+    new cv.Size(5, 5)
+  );
+
+  const closedZoning = new cv.Mat();
+  cv.morphologyEx(zoningMask, closedZoning, cv.MORPH_CLOSE, kernel);
+
+  const allowedMask = new cv.Mat();
+  cv.bitwise_or(zoningMask, boundaryMask, allowedMask);
+
+  const finalMask = new cv.Mat();
+  cv.bitwise_and(closedZoning, allowedMask, finalMask);
+
+  // Cleanup
+  src.delete();
+  hsv.delete();
+  lowerZoning.delete();
+  upperZoning.delete();
+  zoningMask.delete();
+  lowerBoundary.delete();
+  upperBoundary.delete();
+  boundaryMask.delete();
+  kernel.delete();
+  closedZoning.delete();
+  allowedMask.delete();
+
+  return finalMask;
+}
+
 function hexToRgb(hex: string): [number, number, number] {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
   return result
@@ -47,6 +111,35 @@ function rgbToHsv(r: number, g: number, b: number): [number, number, number] {
   return [h / 2, s * 255, v * 255];
 }
 
+function getHsvBounds(
+  hexColor: string,
+  rows: number,
+  cols: number,
+  type: number
+): { lowerBound: any; upperBound: any } {
+  const [r, g, b] = hexToRgb(hexColor);
+  const [h, s, v] = rgbToHsv(r, g, b);
+
+  const hueTol = 10;
+  const satTol = 50;
+  const valTol = 50;
+
+  const lowerBound = new cv.Mat(rows, cols, type, [
+    Math.max(0, h - hueTol),
+    Math.max(0, s - satTol),
+    Math.max(0, v - valTol),
+    0
+  ]);
+  const upperBound = new cv.Mat(rows, cols, type, [
+    Math.min(179, h + hueTol),
+    Math.min(255, s + satTol),
+    Math.min(255, v + valTol),
+    255
+  ]);
+
+  return { lowerBound, upperBound };
+}
+
 export class OpenCvExtractionEngine implements SpatialExtractionEngine {
   async extractShapes(
     canvas: HTMLCanvasElement,
@@ -67,25 +160,12 @@ export class OpenCvExtractionEngine implements SpatialExtractionEngine {
         const results: ExtractedPolygon[] = [];
 
         for (const item of legend) {
-          const [r, g, b] = hexToRgb(item.color);
-          const [h, s, v] = rgbToHsv(r, g, b);
-
-          const hueTol = 10;
-          const satTol = 50;
-          const valTol = 50;
-
-          const lowerBound = new cv.Mat(hsv.rows, hsv.cols, hsv.type(), [
-            Math.max(0, h - hueTol),
-            Math.max(0, s - satTol),
-            Math.max(0, v - valTol),
-            0
-          ]);
-          const upperBound = new cv.Mat(hsv.rows, hsv.cols, hsv.type(), [
-            Math.min(179, h + hueTol),
-            Math.min(255, s + satTol),
-            Math.min(255, v + valTol),
-            255
-          ]);
+          const { lowerBound, upperBound } = getHsvBounds(
+            item.color,
+            hsv.rows,
+            hsv.cols,
+            hsv.type()
+          );
 
           const mask = new cv.Mat();
           cv.inRange(hsv, lowerBound, upperBound, mask);
