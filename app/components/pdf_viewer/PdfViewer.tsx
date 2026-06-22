@@ -7,6 +7,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAtom } from 'jotai';
 import { extractedLegendAtom } from 'state/digitizer';
 import { ocrAdapter } from 'app/lib/ocr_adapter';
+import { spatialExtractionEngine } from '../../lib/spatial_extraction_engine';
+import { digitizerFeaturesAtom } from 'state/digitizer_features';
+import { solveAffineTransform, transformPoint } from '../../lib/transform_engine';
+import { newFeatureId as generateId } from '../../lib/id';
+import type { DigitizerFeature } from 'types/digitizer';
 
 type ZoomMode = 'fit' | '100%';
 
@@ -66,6 +71,8 @@ export function PdfViewer({
   const [renderedSize, setRenderedSize] = useState({ width: 0, height: 0 });
 
   const [extractedLegend, setExtractedLegend] = useAtom(extractedLegendAtom);
+  const [digitizerFeatures, setDigitizerFeatures] = useAtom(digitizerFeaturesAtom);
+  const [isExtractingShapes, setIsExtractingShapes] = useState(false);
   const [isCroppingMode, setIsCroppingMode] = useState(false);
   const [isDrawingCrop, setIsDrawingCrop] = useState(false);
   const [cropStart, setCropStart] = useState<{ x: number; y: number } | null>(
@@ -318,6 +325,66 @@ export function PdfViewer({
     [isDrawingCrop, cropStart, cropEnd, setExtractedLegend]
   );
 
+
+  const handleExtractShapes = useCallback(async () => {
+    if (!canvasRef.current || !extractedLegend || extractedLegend.length === 0) return;
+
+    // Check if we have enough confirmed GCPs for transform
+    const confirmedGCPs = controlPoints.filter(p => p.confirmed);
+    if (confirmedGCPs.length < 3) {
+      alert('Cannot extract shapes: Please confirm at least 3 Ground Control Points (GCPs) first to allow coordinate transformation.');
+      return;
+    }
+
+    setIsExtractingShapes(true);
+    try {
+      const transform = solveAffineTransform(confirmedGCPs);
+      const extractedPolygons = await spatialExtractionEngine.extractShapes(canvasRef.current, extractedLegend);
+
+      const newFeatures: DigitizerFeature[] = extractedPolygons.map(poly => {
+        // Transform coordinates
+        const mapCoords = poly.pdfCoordinates.map(pt => {
+          const mapPt = transformPoint(pt, transform);
+          return [mapPt.lon, mapPt.lat];
+        });
+
+        // Ensure polygon is closed
+        if (mapCoords.length > 0) {
+          const first = mapCoords[0];
+          const last = mapCoords[mapCoords.length - 1];
+          if (first[0] !== last[0] || first[1] !== last[1]) {
+            mapCoords.push([...first]);
+          }
+        }
+
+        return {
+          id: generateId(),
+          geometry: {
+            type: 'Polygon',
+            coordinates: [mapCoords]
+          },
+          properties: {
+            planning_class: poly.legendItem.zone,
+            raw_zoning_label: poly.legendItem.code,
+            confidence: 0.5,
+            source_type: 'digitized',
+            source_name: file ? file.name : 'extracted_shapes',
+            human_confirmed: false,
+          }
+        };
+      });
+
+      setDigitizerFeatures(prev => [...prev, ...newFeatures]);
+      alert(`Successfully extracted ${newFeatures.length} shapes.`);
+
+    } catch (err) {
+      console.error('Failed to extract shapes:', err);
+      alert('Failed to extract shapes. See console for details.');
+    } finally {
+      setIsExtractingShapes(false);
+    }
+  }, [extractedLegend, controlPoints, file, setDigitizerFeatures]);
+
   const handleUploadClick = useCallback(() => {
     fileInputRef.current?.click();
   }, []);
@@ -384,6 +451,16 @@ export function PdfViewer({
               : isCroppingMode
                 ? 'Cancel Crop'
                 : 'Crop Legend'}
+          </button>
+
+          <button
+            type="button"
+            onClick={handleExtractShapes}
+            disabled={!extractedLegend || extractedLegend.length === 0 || isExtractingShapes}
+            className="px-2 py-1 text-xs font-medium rounded bg-blue-100 border border-blue-300 dark:bg-blue-900 dark:border-blue-700 hover:bg-blue-200 dark:hover:bg-blue-800 text-blue-800 dark:text-blue-200 disabled:opacity-50"
+            title={!extractedLegend || extractedLegend.length === 0 ? 'Extract legend first' : 'Extract zoning shapes based on legend'}
+          >
+            {isExtractingShapes ? 'Extracting Shapes...' : 'Extract Shapes'}
           </button>
 
           <button
