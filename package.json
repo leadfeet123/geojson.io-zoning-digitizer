@@ -66,6 +66,7 @@
     "@turf/boolean-disjoint": "^7.3.5",
     "@turf/boolean-overlap": "^7.3.5",
     "@turf/center": "^6.5.0",
+    "@turf/dissolve": "^7.3.5",
     "@turf/distance": "^6.5.0",
     "@turf/helpers": "^6.5.0",
     "@turf/intersect": "^7.3.5",
