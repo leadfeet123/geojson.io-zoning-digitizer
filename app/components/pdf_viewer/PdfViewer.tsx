@@ -4,6 +4,9 @@ import type {
 } from 'pdfjs-dist/types/src/display/api';
 import type { ChangeEvent, DragEvent, MouseEvent } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useAtom } from 'jotai';
+import { extractedLegendAtom } from 'state/digitizer';
+import { ocrAdapter } from 'app/lib/ocr_adapter';
 
 type ZoomMode = 'fit' | '100%';
 
@@ -61,6 +64,15 @@ export function PdfViewer({
   const [docState, setDocState] = useState<PDFDocumentProxy | null>(null);
   const [renderedScale, setRenderedScale] = useState(1);
   const [renderedSize, setRenderedSize] = useState({ width: 0, height: 0 });
+
+  const [extractedLegend, setExtractedLegend] = useAtom(extractedLegendAtom);
+  const [isCroppingMode, setIsCroppingMode] = useState(false);
+  const [isDrawingCrop, setIsDrawingCrop] = useState(false);
+  const [cropStart, setCropStart] = useState<{ x: number; y: number } | null>(
+    null
+  );
+  const [cropEnd, setCropEnd] = useState<{ x: number; y: number } | null>(null);
+  const [isExtracting, setIsExtracting] = useState(false);
 
   const activePage = page ?? internalPage;
 
@@ -234,6 +246,78 @@ export function PdfViewer({
     [activePage, controlPoints]
   );
 
+  const handleCanvasMouseDown = useCallback(
+    (event: React.MouseEvent<HTMLCanvasElement>) => {
+      if (!isCroppingMode) return;
+      const canvas = event.currentTarget;
+      const rect = canvas.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+      setCropStart({ x, y });
+      setCropEnd({ x, y });
+      setIsDrawingCrop(true);
+    },
+    [isCroppingMode]
+  );
+
+  const handleCanvasMouseMove = useCallback(
+    (event: React.MouseEvent<HTMLCanvasElement>) => {
+      if (!isDrawingCrop || !cropStart) return;
+      const canvas = event.currentTarget;
+      const rect = canvas.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+      setCropEnd({ x, y });
+    },
+    [isDrawingCrop, cropStart]
+  );
+
+  const handleCanvasMouseUp = useCallback(
+    async (event: React.MouseEvent<HTMLCanvasElement>) => {
+      if (!isDrawingCrop || !cropStart || !cropEnd) return;
+      setIsDrawingCrop(false);
+
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+
+      // Calculate crop dimensions
+      const x = Math.min(cropStart.x, cropEnd.x);
+      const y = Math.min(cropStart.y, cropEnd.y);
+      const width = Math.abs(cropEnd.x - cropStart.x);
+      const height = Math.abs(cropEnd.y - cropStart.y);
+
+      if (width < 10 || height < 10) {
+        // Too small to be a real crop
+        setCropStart(null);
+        setCropEnd(null);
+        return;
+      }
+
+      setIsExtracting(true);
+      try {
+        // Create a temporary canvas to extract the image data
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = width;
+        tempCanvas.height = height;
+        const ctx = tempCanvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(canvas, x, y, width, height, 0, 0, width, height);
+          const base64Image = tempCanvas.toDataURL('image/jpeg');
+          const legend = await ocrAdapter.extractLegend(base64Image);
+          setExtractedLegend(legend);
+        }
+      } catch (err) {
+        console.error('Failed to extract legend', err);
+      } finally {
+        setIsExtracting(false);
+        setIsCroppingMode(false);
+        setCropStart(null);
+        setCropEnd(null);
+      }
+    },
+    [isDrawingCrop, cropStart, cropEnd, setExtractedLegend]
+  );
+
   const handleUploadClick = useCallback(() => {
     fileInputRef.current?.click();
   }, []);
@@ -290,6 +374,18 @@ export function PdfViewer({
           </span>
         )}
         <div className="ml-auto flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setIsCroppingMode(!isCroppingMode)}
+            className={`px-2 py-1 text-xs border rounded ${isCroppingMode ? 'bg-amber-100 border-amber-300 dark:bg-amber-900 dark:border-amber-700' : 'border-gray-300 dark:border-gray-600'}`}
+          >
+            {isExtracting
+              ? 'Extracting...'
+              : isCroppingMode
+                ? 'Cancel Crop'
+                : 'Crop Legend'}
+          </button>
+
           <button
             type="button"
             onClick={() => setZoomMode('fit')}
@@ -370,13 +466,30 @@ export function PdfViewer({
             <canvas
               ref={canvasRef}
               onClick={handleCanvasClick}
+              onMouseDown={handleCanvasMouseDown}
+              onMouseMove={handleCanvasMouseMove}
+              onMouseUp={handleCanvasMouseUp}
+              onMouseLeave={handleCanvasMouseUp}
               className={
-                isPickingPdfPoint
+                isCroppingMode
                   ? 'mx-auto bg-white shadow-sm cursor-crosshair ring-2 ring-amber-300'
-                  : 'mx-auto bg-white shadow-sm'
+                  : isPickingPdfPoint
+                    ? 'mx-auto bg-white shadow-sm cursor-crosshair ring-2 ring-amber-300'
+                    : 'mx-auto bg-white shadow-sm'
               }
               aria-label="Rendered PDF page"
             />
+            {isCroppingMode && cropStart && cropEnd && (
+              <div
+                className="absolute border-2 border-amber-500 bg-amber-500/20 pointer-events-none"
+                style={{
+                  left: Math.min(cropStart.x, cropEnd.x),
+                  top: Math.min(cropStart.y, cropEnd.y),
+                  width: Math.abs(cropEnd.x - cropStart.x),
+                  height: Math.abs(cropEnd.y - cropStart.y)
+                }}
+              />
+            )}
             {pointsOnPage.length > 0 && renderedSize.width > 0 && (
               <div className="absolute inset-0 pointer-events-none">
                 {pointsOnPage.map((point, index) => {

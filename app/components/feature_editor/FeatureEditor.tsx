@@ -1,4 +1,6 @@
 import { InlineError } from 'app/components/inline_error';
+import { useAtom } from 'jotai';
+import { extractedLegendAtom } from 'state/digitizer';
 import type { DigitizerFeature, ValidationResult } from 'types/digitizer';
 
 interface FeatureEditorProps {
@@ -31,6 +33,7 @@ export function FeatureEditor({
   validationResults = [],
   onFeatureChange
 }: FeatureEditorProps) {
+  const [extractedLegend] = useAtom(extractedLegendAtom);
   if (!selectedFeature) {
     return (
       <section className="h-full w-full p-4 bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700">
@@ -148,16 +151,55 @@ export function FeatureEditor({
 
         <div>
           <span className="text-xs font-medium uppercase tracking-wide text-gray-600 dark:text-gray-300">
-            AI Assist
+            Extracted Legend Rules
           </span>
-          <button
-            type="button"
-            disabled
-            className="mt-1 w-full rounded border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm text-gray-500 dark:text-gray-400 cursor-not-allowed"
-          >
-            Detect label (coming in Phase 3)
-          </button>
-          {/* TODO(phase-3): Wire OCR and classification suggestions through adapters. */}
+          {extractedLegend && extractedLegend.length > 0 ? (
+            <div className="mt-2 space-y-2 max-h-48 overflow-y-auto">
+              <table className="min-w-full text-xs text-left text-gray-600 dark:text-gray-300">
+                <thead className="bg-gray-50 dark:bg-gray-800">
+                  <tr>
+                    <th className="px-2 py-1 font-semibold border-b border-gray-200 dark:border-gray-700">
+                      Color
+                    </th>
+                    <th className="px-2 py-1 font-semibold border-b border-gray-200 dark:border-gray-700">
+                      Code
+                    </th>
+                    <th className="px-2 py-1 font-semibold border-b border-gray-200 dark:border-gray-700">
+                      Zone
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {extractedLegend.map((item, i) => (
+                    <tr
+                      key={i}
+                      className="border-b border-gray-100 dark:border-gray-800"
+                    >
+                      <td className="px-2 py-1">
+                        <div
+                          className="w-4 h-4 rounded-full border border-gray-300"
+                          style={{ backgroundColor: item.color }}
+                          title={item.color}
+                        />
+                      </td>
+                      <td className="px-2 py-1">{item.code}</td>
+                      <td
+                        className="px-2 py-1 truncate max-w-[100px]"
+                        title={item.zone}
+                      >
+                        {item.zone}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="mt-1 px-3 py-2 text-sm text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded">
+              No legend extracted yet. Use the "Crop Legend" tool in the PDF
+              Viewer.
+            </div>
+          )}
         </div>
 
         {fieldErrors.general && (
