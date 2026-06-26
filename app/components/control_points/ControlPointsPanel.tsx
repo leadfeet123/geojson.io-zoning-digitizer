@@ -1,4 +1,5 @@
 import {
+  defaultGeorefSuggestionSource,
   defaultGeorefSuggestionAdapter,
   type GeorefSuggestion
 } from 'app/lib/georef_suggestion_adapter';
@@ -37,6 +38,18 @@ function statusText(mode: string): string {
   }
 
   return 'Idle';
+}
+
+function sourceBadgeClass(source: string): string {
+  if (source === 'Proxy') {
+    return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
+  }
+
+  if (source === 'Gemini') {
+    return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200';
+  }
+
+  return 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200';
 }
 
 /**
@@ -267,6 +280,13 @@ export function ControlPointsPanel({
           <p className="text-xs font-medium uppercase tracking-wide text-gray-600 dark:text-gray-300">
             AI suggestions (experimental)
           </p>
+          <div className="mt-1">
+            <span
+              className={`inline-flex items-center rounded px-2 py-0.5 text-[10px] font-medium ${sourceBadgeClass(defaultGeorefSuggestionSource)}`}
+            >
+              Source: {defaultGeorefSuggestionSource}
+            </span>
+          </div>
           <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">
             Review each suggestion, edit lon/lat if needed, then add to control
             points.

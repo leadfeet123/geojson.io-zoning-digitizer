@@ -2,7 +2,8 @@ import {
   GeminiGeorefSuggestionAdapter,
   HeuristicGeorefSuggestionAdapter,
   parseGeorefSuggestionResponse,
-  RemoteGeorefSuggestionAdapter
+  RemoteGeorefSuggestionAdapter,
+  resolveGeorefSuggestionSource
 } from 'app/lib/georef_suggestion_adapter';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -162,5 +163,13 @@ describe('georef_suggestion_adapter', () => {
     expect(suggestions.every((suggestion) => suggestion.pdf.page === 2)).toBe(
       true
     );
+  });
+
+  it('resolves source label in proxy -> gemini -> heuristic order', () => {
+    expect(resolveGeorefSuggestionSource('https://proxy.example', 'key')).toBe(
+      'Proxy'
+    );
+    expect(resolveGeorefSuggestionSource('', 'key')).toBe('Gemini');
+    expect(resolveGeorefSuggestionSource('', '')).toBe('Heuristic');
   });
 });

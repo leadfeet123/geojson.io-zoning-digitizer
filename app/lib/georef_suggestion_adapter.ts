@@ -2,6 +2,8 @@ import { aiEnv } from 'app/lib/env_ai';
 import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
 import { nanoid } from 'nanoid';
 
+export type GeorefSuggestionSource = 'Proxy' | 'Gemini' | 'Heuristic';
+
 export interface GeorefSuggestion {
   id: string;
   pdf: {
@@ -33,6 +35,21 @@ export interface GeorefSuggestionRequest {
 
 export interface GeorefSuggestionAdapter {
   suggestPoints(request: GeorefSuggestionRequest): Promise<GeorefSuggestion[]>;
+}
+
+export function resolveGeorefSuggestionSource(
+  proxyUrl: string,
+  geminiApiKey: string
+): GeorefSuggestionSource {
+  if (proxyUrl) {
+    return 'Proxy';
+  }
+
+  if (geminiApiKey) {
+    return 'Gemini';
+  }
+
+  return 'Heuristic';
 }
 
 interface RemoteGeorefSuggestionResponse {
@@ -309,3 +326,9 @@ export const defaultGeorefSuggestionAdapter: GeorefSuggestionAdapter =
     : aiEnv.GEMINI_API_KEY
       ? new GeminiGeorefSuggestionAdapter(aiEnv.GEMINI_API_KEY)
       : new HeuristicGeorefSuggestionAdapter();
+
+export const defaultGeorefSuggestionSource: GeorefSuggestionSource =
+  resolveGeorefSuggestionSource(
+    aiEnv.GEOREF_SUGGESTION_PROXY_URL,
+    aiEnv.GEMINI_API_KEY
+  );

@@ -17,7 +17,7 @@ This checklist tracks practical Gemini-enabled features for the zoning digitizer
 - [x] Add Gemini-backed georeference suggestion adapter with heuristic fallback
 - [x] Add parser normalization/clamping for model responses
 - [x] Add unit tests for parser and fallback behavior
-- [ ] Add UI source badges (Gemini/Proxy/Heuristic)
+- [x] Add UI source badges (Gemini/Proxy/Heuristic)
 - [ ] Add retry/fallback messaging in control point panel
 - [ ] Add confidence ordering and low-confidence visual warning
 - [ ] Add integration test for adapter selection order
