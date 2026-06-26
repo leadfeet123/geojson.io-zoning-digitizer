@@ -7,13 +7,13 @@ describe('ai_logger', () => {
 
     logAiError(
       'test',
-      new Error('Failed with key=AIzaSyABC1234567890abcdefghijklmnopqrst')
+      new Error('Failed with key=FAKE_GEMINI_KEY_FOR_TEST_ONLY_NOT_REAL')
     );
 
     expect(spy).toHaveBeenCalledOnce();
     const [prefix, message] = spy.mock.calls[0];
     expect(prefix).toBe('[AI:test]');
-    expect(message).not.toContain('AIzaSy');
+    expect(message).not.toContain('FAKE_GEMINI_KEY_FOR_TEST_ONLY');
     expect(message).toContain('[redacted');
 
     spy.mockRestore();
