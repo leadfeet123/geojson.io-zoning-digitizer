@@ -3,6 +3,7 @@ import Drop from 'app/components/drop';
 import { ControlPointMapCapture } from 'app/components/control_points/ControlPointMapCapture';
 import { ControlPointsPanel } from 'app/components/control_points/ControlPointsPanel';
 import { PdfViewer } from 'app/components/pdf_viewer/PdfViewer';
+import { DigitizerFeaturePanel } from 'app/components/feature_editor';
 import { MapComponent } from 'app/components/map_component';
 import { MenuBar } from 'app/components/menu_bar';
 import FeatureEditor from './panels/feature_editor';
@@ -246,6 +247,7 @@ export function GeojsonIO() {
               </div>
               <div className="flex-1 flex relative overflow-hidden">
                 <LayoutWorkspace
+                  digitizerMode={digitizerMode}
                   layout={layout}
                   persistentTransform={persistentTransform}
                   sensor={sensor}
@@ -257,6 +259,7 @@ export function GeojsonIO() {
             </div>
           ) : (
             <LayoutWorkspace
+              digitizerMode={digitizerMode}
               layout={layout}
               persistentTransform={persistentTransform}
               sensor={sensor}
@@ -278,12 +281,14 @@ export function GeojsonIO() {
 }
 
 function LayoutWorkspace({
+  digitizerMode,
   layout,
   setMap,
   sensor,
   setPersistentTransform,
   persistentTransform
 }: {
+  digitizerMode: boolean;
   layout: ResolvedLayout;
   setMap: (arg0: PMap | null) => void;
   sensor: ReturnType<typeof useSensors>;
@@ -313,6 +318,7 @@ function LayoutWorkspace({
         }}
       >
         <Map
+          digitizerMode={digitizerMode}
           persistentTransform={persistentTransform}
           setMap={setMap}
           layout={layout}
@@ -335,9 +341,11 @@ function LayoutWorkspace({
 }
 
 function Map({
+  digitizerMode,
   layout,
   setMap
 }: {
+  digitizerMode: boolean;
   layout: ResolvedLayout;
   setMap: (arg0: PMap | null) => void;
   persistentTransform: Transform;
@@ -363,7 +371,12 @@ function Map({
         <Legend />
       </div>
       {/* Feature Editor bottom of map */}
-      {layout === 'HORIZONTAL' && <FeatureEditor layout={layout} />}
+      {layout === 'HORIZONTAL' &&
+        (digitizerMode ? (
+          <DigitizerFeaturePanel />
+        ) : (
+          <FeatureEditor layout={layout} />
+        ))}
     </div>
   );
 }
