@@ -54,7 +54,10 @@ interface RemoteGeorefSuggestionResponse {
  * Optional AI-backed adapter configured from env, never hardcoded in source.
  */
 export class RemoteGeorefSuggestionAdapter implements GeorefSuggestionAdapter {
-  constructor(private readonly apiUrl: string) {}
+  constructor(
+    private readonly apiUrl: string,
+    private readonly geminiApiKey = ''
+  ) {}
 
   async suggestPoints(
     request: GeorefSuggestionRequest
@@ -62,7 +65,8 @@ export class RemoteGeorefSuggestionAdapter implements GeorefSuggestionAdapter {
     const response = await fetch(this.apiUrl, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        ...(this.geminiApiKey ? { 'X-Gemini-Api-Key': this.geminiApiKey } : {})
       },
       body: JSON.stringify(request)
     });
@@ -154,5 +158,8 @@ export class HeuristicGeorefSuggestionAdapter implements GeorefSuggestionAdapter
 
 export const defaultGeorefSuggestionAdapter: GeorefSuggestionAdapter =
   aiEnv.GEOREF_SUGGESTION_PROXY_URL
-    ? new RemoteGeorefSuggestionAdapter(aiEnv.GEOREF_SUGGESTION_PROXY_URL)
+    ? new RemoteGeorefSuggestionAdapter(
+        aiEnv.GEOREF_SUGGESTION_PROXY_URL,
+        aiEnv.GEMINI_API_KEY
+      )
     : new HeuristicGeorefSuggestionAdapter();

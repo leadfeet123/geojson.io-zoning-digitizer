@@ -31,8 +31,11 @@ If you wire the experimental AI georeference suggestion service, configure only 
 
 - `VITE_GEOREF_SUGGESTION_PROXY_URL`
 
-Do not put private API keys in `VITE_*` variables. Vite bundles those values into client code.
-Store real secrets only in your server-side proxy/runtime.
+To enable Gemini-backed AI features (OCR legend extraction and optional proxy-auth for georeference suggestions), set:
+
+- `VITE_GEMINI_API_KEY`
+
+`VITE_*` values are bundled into client code. For production, prefer a server-side proxy and use restricted or scoped API credentials if you expose a client-side key for local workflows.
 
 If those AI variables are not set, the app falls back to the built-in heuristic suggester. The existing Mapbox configuration remains unchanged.
 

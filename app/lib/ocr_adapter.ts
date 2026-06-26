@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
+import { aiEnv } from 'app/lib/env_ai';
 
 export interface LegendItem {
   color: string;
@@ -33,7 +34,7 @@ export function parseLegendResponse(jsonStr: string): LegendResult | null {
  */
 export class GeminiOcrAdapter implements OcrAdapter {
   async extractLegend(base64Image: string): Promise<LegendResult | null> {
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+    const apiKey = aiEnv.GEMINI_API_KEY;
     if (!apiKey) {
       console.warn('VITE_GEMINI_API_KEY is not set. Returning null legend.');
       return null;
@@ -84,7 +85,8 @@ export class GeminiOcrAdapter implements OcrAdapter {
         }
       };
 
-      const prompt = "Analyze this zoning legend. Return a strict JSON object with two keys: 'zones' and 'boundary_line'. The 'zones' key must be an array of objects, where each object contains 'color' (the exact hex code of the zone), 'code' (the short zoning code, e.g., C-1), and 'description' (the full name of the zone). The 'boundary_line' key must contain the exact hex color of the lines used to separate parcels, lots, or properties. If no specific boundary line color is explicitly defined in the legend, return null for 'boundary_line'.";
+      const prompt =
+        "Analyze this zoning legend. Return a strict JSON object with two keys: 'zones' and 'boundary_line'. The 'zones' key must be an array of objects, where each object contains 'color' (the exact hex code of the zone), 'code' (the short zoning code, e.g., C-1), and 'description' (the full name of the zone). The 'boundary_line' key must contain the exact hex color of the lines used to separate parcels, lots, or properties. If no specific boundary line color is explicitly defined in the legend, return null for 'boundary_line'.";
 
       const result = await model.generateContent([prompt, imagePart]);
       const response = result.response;
@@ -94,7 +96,10 @@ export class GeminiOcrAdapter implements OcrAdapter {
         return null;
       }
 
-      const jsonStr = text.replace(/^```json/m, '').replace(/^```/m, '').trim();
+      const jsonStr = text
+        .replace(/^```json/m, '')
+        .replace(/^```/m, '')
+        .trim();
 
       return parseLegendResponse(jsonStr);
     } catch (error) {
