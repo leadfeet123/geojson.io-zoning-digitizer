@@ -131,14 +131,13 @@ describe('FeatureEditor integration', () => {
     expect(lastCallArg?.properties.planning_class).toBe('Commercial');
     expect(lastCallArg?.properties.confidence).toBe(0.81);
     expect(lastCallArg?.properties.human_confirmed).toBe(false);
-    expect(lastCallArg?.properties.ai_suggestions).toEqual([
-      {
-        field: 'planning_class',
-        value: 'Commercial',
-        confidence: 0.81,
-        accepted: true
-      }
-    ]);
+    const suggestion = lastCallArg?.properties.ai_suggestions?.[0];
+    expect(suggestion?.field).toBe('planning_class');
+    expect(suggestion?.value).toBe('Commercial');
+    expect(suggestion?.confidence).toBe(0.81);
+    expect(suggestion?.accepted).toBe(true);
+    expect(suggestion?.decision_history).toHaveLength(1);
+    expect(suggestion?.decision_history?.[0].action).toBe('accepted');
 
     await act(async () => {
       root.unmount();
@@ -209,14 +208,12 @@ describe('FeatureEditor integration', () => {
     expect(lastCallArg).toBeDefined();
     expect(lastCallArg?.properties.planning_class).toBe('Custom Mixed Use');
     expect(lastCallArg?.properties.human_confirmed).toBe(false);
-    expect(lastCallArg?.properties.ai_suggestions).toEqual([
-      {
-        field: 'planning_class',
-        value: 'Commercial',
-        confidence: 0.81,
-        accepted: false
-      }
-    ]);
+    const suggestion = lastCallArg?.properties.ai_suggestions?.[0];
+    expect(suggestion?.field).toBe('planning_class');
+    expect(suggestion?.value).toBe('Commercial');
+    expect(suggestion?.accepted).toBe(false);
+    expect(suggestion?.decision_history).toHaveLength(1);
+    expect(suggestion?.decision_history?.[0].action).toBe('overridden');
 
     await act(async () => {
       root.unmount();

@@ -1,4 +1,5 @@
 import { defaultClassificationAdapter } from 'app/lib/classification_adapter';
+import { recordSuggestionDecision } from 'app/lib/ai_suggestion_helpers';
 import { InlineError } from 'app/components/inline_error';
 import { useAtom } from 'jotai';
 import { useEffect, useState } from 'react';
@@ -137,16 +138,24 @@ export function FeatureEditor({
     );
 
     const nextPlanningClassSuggestions: AiSuggestion[] = classSuggestions.map(
-      (item, index) => ({
-        field: 'planning_class',
-        value: item.planning_class,
-        confidence: item.confidence,
-        accepted:
-          index === selectedIndex
-            ? true
-            : (existingPlanningClassByValue.get(item.planning_class)
-                ?.accepted ?? null)
-      })
+      (item, index) => {
+        const existing = existingPlanningClassByValue.get(item.planning_class);
+        const base: AiSuggestion = existing ?? {
+          field: 'planning_class',
+          value: item.planning_class,
+          confidence: item.confidence,
+          accepted: null
+        };
+
+        if (index === selectedIndex) {
+          return recordSuggestionDecision(
+            { ...base, accepted: true },
+            'accepted'
+          );
+        }
+
+        return { ...base, accepted: base.accepted };
+      }
     );
 
     updateProperties({
@@ -175,16 +184,24 @@ export function FeatureEditor({
     );
 
     const nextPlanningClassSuggestions: AiSuggestion[] = classSuggestions.map(
-      (item) => ({
-        field: 'planning_class',
-        value: item.planning_class,
-        confidence: item.confidence,
-        accepted:
-          item.planning_class === suggestion.planning_class
-            ? false
-            : (existingPlanningClassByValue.get(item.planning_class)
-                ?.accepted ?? null)
-      })
+      (item) => {
+        const existing = existingPlanningClassByValue.get(item.planning_class);
+        const base: AiSuggestion = existing ?? {
+          field: 'planning_class',
+          value: item.planning_class,
+          confidence: item.confidence,
+          accepted: null
+        };
+
+        if (item.planning_class === suggestion.planning_class) {
+          return recordSuggestionDecision(
+            { ...base, accepted: false },
+            'rejected'
+          );
+        }
+
+        return { ...base, accepted: base.accepted };
+      }
     );
 
     updateProperties({
@@ -203,12 +220,22 @@ export function FeatureEditor({
     );
 
     const nextPlanningClassSuggestions: AiSuggestion[] = classSuggestions.map(
-      (item) => ({
-        field: 'planning_class',
-        value: item.planning_class,
-        confidence: item.confidence,
-        accepted: false
-      })
+      (item) => {
+        const existing = feature.properties.ai_suggestions?.find(
+          (s) => s.field === 'planning_class' && s.value === item.planning_class
+        );
+        const base: AiSuggestion = existing ?? {
+          field: 'planning_class',
+          value: item.planning_class,
+          confidence: item.confidence,
+          accepted: null
+        };
+
+        return recordSuggestionDecision(
+          { ...base, accepted: false },
+          'overridden'
+        );
+      }
     );
 
     updateProperties({

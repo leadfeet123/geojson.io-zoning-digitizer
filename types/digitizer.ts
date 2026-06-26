@@ -1,10 +1,16 @@
 import type { MultiPolygon, Polygon } from 'types';
 
+export interface AiSuggestionDecision {
+  action: 'accepted' | 'rejected' | 'overridden';
+  timestamp: string;
+}
+
 export interface AiSuggestion {
   field: 'raw_zoning_label' | 'planning_class';
   value: string;
   confidence: number;
   accepted: boolean | null;
+  decision_history?: AiSuggestionDecision[];
 }
 
 export interface DigitizerFeature {
