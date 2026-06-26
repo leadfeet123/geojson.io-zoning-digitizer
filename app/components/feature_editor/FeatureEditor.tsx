@@ -1,5 +1,7 @@
+import { defaultClassificationAdapter } from 'app/lib/classification_adapter';
 import { InlineError } from 'app/components/inline_error';
 import { useAtom } from 'jotai';
+import { useState } from 'react';
 import { extractedLegendAtom } from 'state/digitizer';
 import type { DigitizerFeature, ValidationResult } from 'types/digitizer';
 
@@ -34,6 +36,13 @@ export function FeatureEditor({
   onFeatureChange
 }: FeatureEditorProps) {
   const [extractedLegend] = useAtom(extractedLegendAtom);
+  const [isSuggestingClass, setIsSuggestingClass] = useState(false);
+  const [classSuggestionError, setClassSuggestionError] = useState<
+    string | null
+  >(null);
+  const [classSuggestions, setClassSuggestions] = useState<
+    Array<{ planning_class: string; confidence: number; rationale: string }>
+  >([]);
   if (!selectedFeature) {
     return (
       <section className="h-full w-full p-4 bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700">
@@ -60,6 +69,61 @@ export function FeatureEditor({
         ...feature.properties,
         ...updates
       }
+    });
+  }
+
+  async function suggestPlanningClass(): Promise<void> {
+    const label = feature.properties.raw_zoning_label.trim();
+    if (!label) {
+      setClassSuggestionError(
+        'Enter a raw zoning label before requesting AI classification'
+      );
+      setClassSuggestions([]);
+      return;
+    }
+
+    setIsSuggestingClass(true);
+    setClassSuggestionError(null);
+
+    try {
+      const suggestions =
+        await defaultClassificationAdapter.suggestPlanningClass({
+          rawZoningLabel: label
+        });
+
+      setClassSuggestions(suggestions);
+
+      if (suggestions.length === 0) {
+        setClassSuggestionError(
+          'No planning class suggestions available for this zoning label yet'
+        );
+      }
+    } catch (error) {
+      setClassSuggestionError(
+        error instanceof Error
+          ? error.message
+          : 'Failed to generate planning class suggestions'
+      );
+      setClassSuggestions([]);
+    } finally {
+      setIsSuggestingClass(false);
+    }
+  }
+
+  function applyPlanningClassSuggestion(
+    suggestion: { planning_class: string; confidence: number },
+    selectedIndex: number
+  ): void {
+    updateProperties({
+      planning_class: suggestion.planning_class,
+      confidence: suggestion.confidence,
+      human_confirmed: false,
+      ai_suggestions: classSuggestions.map((item, index) => ({
+        field: 'planning_class',
+        value: item.planning_class,
+        confidence: item.confidence,
+        accepted: index === selectedIndex
+      }))
     });
   }
 
@@ -106,6 +170,55 @@ export function FeatureEditor({
           />
           {fieldErrors.planning_class && (
             <InlineError>{fieldErrors.planning_class}</InlineError>
+          )}
+
+          <div className="mt-2 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                void suggestPlanningClass();
+              }}
+              disabled={isSuggestingClass}
+              className="px-3 py-1 text-xs rounded border border-gray-300 dark:border-gray-600 disabled:opacity-50"
+            >
+              {isSuggestingClass ? 'Suggesting...' : 'Suggest Planning Class'}
+            </button>
+          </div>
+
+          {classSuggestionError && (
+            <InlineError>{classSuggestionError}</InlineError>
+          )}
+
+          {classSuggestions.length > 0 && (
+            <div className="mt-2 space-y-2">
+              {classSuggestions.map((suggestion, index) => (
+                <div
+                  key={`${suggestion.planning_class}-${index}`}
+                  className="rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-2"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm text-gray-900 dark:text-gray-100">
+                      {suggestion.planning_class}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        applyPlanningClassSuggestion(suggestion, index)
+                      }
+                      className="px-2 py-1 text-xs rounded border border-gray-300 dark:border-gray-600"
+                    >
+                      Apply
+                    </button>
+                  </div>
+                  <div className="mt-1 text-xs text-gray-600 dark:text-gray-300">
+                    Confidence: {(suggestion.confidence * 100).toFixed(0)}%
+                  </div>
+                  <div className="mt-1 text-xs text-gray-600 dark:text-gray-300">
+                    {suggestion.rationale}
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
         </label>
 
