@@ -1,4 +1,5 @@
 import {
+  createDefaultGeorefSuggestionAdapter,
   GeminiGeorefSuggestionAdapter,
   HeuristicGeorefSuggestionAdapter,
   parseGeorefSuggestionResponse,
@@ -171,5 +172,18 @@ describe('georef_suggestion_adapter', () => {
     );
     expect(resolveGeorefSuggestionSource('', 'key')).toBe('Gemini');
     expect(resolveGeorefSuggestionSource('', '')).toBe('Heuristic');
+  });
+
+  it('selects concrete adapter in proxy -> gemini -> heuristic order', () => {
+    const proxyAdapter = createDefaultGeorefSuggestionAdapter(
+      'https://proxy.example',
+      'key'
+    );
+    const geminiAdapter = createDefaultGeorefSuggestionAdapter('', 'key');
+    const heuristicAdapter = createDefaultGeorefSuggestionAdapter('', '');
+
+    expect(proxyAdapter).toBeInstanceOf(RemoteGeorefSuggestionAdapter);
+    expect(geminiAdapter).toBeInstanceOf(GeminiGeorefSuggestionAdapter);
+    expect(heuristicAdapter).toBeInstanceOf(HeuristicGeorefSuggestionAdapter);
   });
 });

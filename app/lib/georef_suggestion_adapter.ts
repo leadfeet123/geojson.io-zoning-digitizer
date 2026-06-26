@@ -317,15 +317,26 @@ export class HeuristicGeorefSuggestionAdapter implements GeorefSuggestionAdapter
   }
 }
 
+export function createDefaultGeorefSuggestionAdapter(
+  proxyUrl: string,
+  geminiApiKey: string
+): GeorefSuggestionAdapter {
+  if (proxyUrl) {
+    return new RemoteGeorefSuggestionAdapter(proxyUrl, geminiApiKey);
+  }
+
+  if (geminiApiKey) {
+    return new GeminiGeorefSuggestionAdapter(geminiApiKey);
+  }
+
+  return new HeuristicGeorefSuggestionAdapter();
+}
+
 export const defaultGeorefSuggestionAdapter: GeorefSuggestionAdapter =
-  aiEnv.GEOREF_SUGGESTION_PROXY_URL
-    ? new RemoteGeorefSuggestionAdapter(
-        aiEnv.GEOREF_SUGGESTION_PROXY_URL,
-        aiEnv.GEMINI_API_KEY
-      )
-    : aiEnv.GEMINI_API_KEY
-      ? new GeminiGeorefSuggestionAdapter(aiEnv.GEMINI_API_KEY)
-      : new HeuristicGeorefSuggestionAdapter();
+  createDefaultGeorefSuggestionAdapter(
+    aiEnv.GEOREF_SUGGESTION_PROXY_URL,
+    aiEnv.GEMINI_API_KEY
+  );
 
 export const defaultGeorefSuggestionSource: GeorefSuggestionSource =
   resolveGeorefSuggestionSource(

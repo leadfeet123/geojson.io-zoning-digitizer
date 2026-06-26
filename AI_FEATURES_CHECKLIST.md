@@ -20,7 +20,7 @@ This checklist tracks practical Gemini-enabled features for the zoning digitizer
 - [x] Add UI source badges (Gemini/Proxy/Heuristic)
 - [x] Add retry/fallback messaging in control point panel
 - [x] Add confidence ordering and low-confidence visual warning
-- [ ] Add integration test for adapter selection order
+- [x] Add integration test for adapter selection order
 
 ## 3. Human-in-the-Loop Controls (No.3)
 
