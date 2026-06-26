@@ -2,6 +2,27 @@
 
 Recent changes to the geojson.io application. Entries are grouped by ship date.
 
+## 2026-06-25
+
+- **Fix 2 finger pan while in drawing mode:** Fix for users on touch devices, now 2 finger gestures while drawing is in process will make it to the map and will allow for panning.
+- **Mobile Panel Resizing:** On Mobile devices the bottom panel now presents clickable surface for resizing.
+- **Streamlined file import:** Files with unambiguous formats (GeoJSON, KML, GPX, shapefiles, etc.) now import directly without showing a dialog. The import modal only appears when user input is needed (CSV, XLS, coordinate strings). Drag-and-drop and the Import button now share identical logic, and `fitBounds` works correctly after drag-and-drop imports.
+
+## 2026-06-24
+
+- **Adds Share Url Functionality**: Get a share url to send others, with geojson features zipped and base64 encoded to allow for large geojson to be encoded efficiently. ([#1017](https://github.com/mapbox/geojson.io/pull/1017))
+
+## 2026-06-15
+
+- **WMS layer support**: Adds WMS layer support to Add Raster layer ([#1009](https://github.com/mapbox/geojson.io/pull/1009))
+- **Map panning while over features**: Bug fix - Allows map panning when cursor is over polygon features, particularly cumbersome when feature covers the full map viewport. ([#1005](https://github.com/mapbox/geojson.io/pull/1005))
+
+## 2026-06-10
+
+- **Radius Tooltip**: Add radius Tooltip when drawing & resizing circles([#995](https://github.com/mapbox/geojson.io/pull/995))
+
+- Bug: Fixed Vertex Selection & deletion on polygons / linestrings in Firefox([#996](https://github.com/mapbox/geojson.io/pull/996))
+
 ## 2026-06-05
 
 - **Google Analytics:** Added GA4 tracking via `VITE_GA_MEASUREMENT_ID` environment variable ([#994](https://github.com/mapbox/geojson.io/pull/994))

@@ -48,19 +48,6 @@ function LegendTitle({ title }: { title: string }) {
   );
 }
 
-function LegendContainer({ children }: { children: React.ReactNode }) {
-  return (
-    <div
-      className="space-y-1 text-xs
-      bg-white dark:bg-gray-900
-      dark:text-white
-      border border-gray-300 dark:border-black w-48 rounded-t"
-    >
-      {children}
-    </div>
-  );
-}
-
 function LegendRamp({ symbolization }: { symbolization: ISymbolizationRamp }) {
   return (
     <>
@@ -321,9 +308,9 @@ export function Legend() {
     .exhaustive();
 
   return (
-    <div className="space-y-1 absolute bottom-0 right-10 w-48">
+    <div className="space-y-1 absolute bottom-1 right-10 w-48">
       <ScaleControl />
-      <LegendContainer>{legend}</LegendContainer>
+      {legend}
     </div>
   );
 }

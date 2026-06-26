@@ -53,6 +53,12 @@ In addition to exporting GeoJSON, you can choose other file formats such as KML,
 
 When export GeoJSON, geojson.io always exports a FeatureCollection.
 
+## Sharing data
+
+Use the **Share button** to generate a URL that encodes the current GeoJSON data directly in the link. Anyone with the link can open it in geojson.io and see the same data — no account or file upload required.
+
+Share links use the `?data` URL parameter with a URL-encoded data URI. Because URLs have practical length limits, the Share button is only available when the encoded URL is fewer than 8,000 characters. For larger datasets, use the Export button to save a file and share that instead.
+
 ## Supported File Types
 
 **geojson.io** supports the following file types for import and export as outlined in the table below.
@@ -120,11 +126,13 @@ When export GeoJSON, geojson.io always exports a FeatureCollection.
 
 geojson.io supports URL parameters for adding data to the map and storing the map's location and view settings.
 
-| Parameter                                                                 | Example                                                                                                                                                                                                                                                                                                                                                                                         |
-| ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `map`<br/> Set the map camera position (always kept in sync with the map) | `?map=zoom/lat/lng/bearing/pitch`<br/>`?map=9.53/40.7084/-73.9706/-20/28`<br/>bearing and pitch are optional and default to 0. When present alongside `data` or `id`, the camera position is honored instead of flying to the data extent.                                                                                                                                                      |
-| `data`<br/> Load data from a URL or data URI (GeoJSON, KML, CSV, etc.)    | `?data=https://example.com/file.geojson`<br>`?data=data:application/json,%7B...%7D`<br/> [URL Example](?data=https%3A%2F%2Fraw.githubusercontent.com%2Fcodeforgermany%2Fclick_that_hood%2Fmain%2Fpublic%2Fdata%2Fcalifornia-counties.geojson) <br/> [Data URI Example](?data=data:application/json,%7B%22type%22%3A%22LineString%22%2C%22coordinates%22%3A%5B%5B0%2C0%5D%2C%5B10%2C10%5D%5D%7D) |
-| `id` <br/> Load data from a GitHub path or Gist resource                  | `?id=github:username/repo/branch/path/to/file.geojson`<br>`?id=gist:username/gistid` <br/> [Github Example](?id=github:benbalter/dc-wifi-social/blob/master/bars.geojson) <br/> [Gist Example](?id=gist:tmcw/e9a29ad54dbaa83dee08)                                                                                                                                                              |
+| Parameter                                                                                            | Example                                                                                                                                                                                                                                    |
+| ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `map`<br/> Set the map camera position (always kept in sync with the map)                            | `?map=zoom/lat/lng/bearing/pitch`<br/>`?map=9.53/40.7084/-73.9706/-20/28`<br/>bearing and pitch are optional and default to 0. When present alongside `data` or `id`, the camera position is honored instead of flying to the data extent. |
+| `data`<br/> Load data from a remote URL (GeoJSON, KML, CSV, etc.)                                    | `?data=https://example.com/file.geojson` [Example](?data=https%3A%2F%2Fraw.githubusercontent.com%2Fcodeforgermany%2Fclick_that_hood%2Fmain%2Fpublic%2Fdata%2Fcalifornia-counties.geojson)                                                  |
+| `data`<br/> Load data from a data URI containing URL-encoded GeoJSON                                 | `?data=data:application/json,<url-encoded-GeoJSON>` [Example](?data=data:application/json,%7B%22type%22%3A%22LineString%22%2C%22coordinates%22%3A%5B%5B0%2C0%5D%2C%5B10%2C10%5D%5D%7D)                                                     |
+| `data`<br/> Load gzip-compressed, base64url-encoded GeoJSON (also generated by the **Share** button) | `?data=gz:<base64url-gzipped-GeoJSON>` [Example](?data=gz:H4sIAAAAAAAAE12LPQuDMBCG_8s73-CcVXR2F4dgzxJIcuE8oRLy38UWOrg-HxV2FobDyN4O5V5i5NWCZBC2H9vh5vroQHizJDY94f5ykpANhFVEXyF7-74ddUsjFJXCauFmFdmn-xg-PpXIaG1pF6Wm6E-MAAAA)                |
+| `id` <br/> Load data from a GitHub path or Gist resource                                             | `?id=github:username/repo/branch/path/to/file.geojson`<br>`?id=gist:username/gistid` <br/> [Github Example](?id=github:benbalter/dc-wifi-social/blob/master/bars.geojson) <br/> [Gist Example](?id=gist:tmcw/e9a29ad54dbaa83dee08)         |
 
 ## SimpleStyle
 
