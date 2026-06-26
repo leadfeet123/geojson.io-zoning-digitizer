@@ -1,4 +1,5 @@
 import { aiEnv } from 'app/lib/env_ai';
+import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
 import { nanoid } from 'nanoid';
 
 export interface GeorefSuggestion {
@@ -50,6 +51,66 @@ interface RemoteGeorefSuggestionResponse {
   }>;
 }
 
+interface ParsedGeorefSuggestion {
+  pdf: {
+    x: number;
+    y: number;
+    page?: number;
+  };
+  map: {
+    lon: number;
+    lat: number;
+  };
+  confidence: number;
+  rationale: string;
+}
+
+interface GeminiGeorefSuggestionResponse {
+  suggestions: ParsedGeorefSuggestion[];
+}
+
+/**
+ * Parses model output and normalizes confidence/page values.
+ */
+export function parseGeorefSuggestionResponse(
+  jsonStr: string,
+  fallbackPage: number
+): GeorefSuggestion[] {
+  try {
+    const parsed = JSON.parse(jsonStr) as GeminiGeorefSuggestionResponse;
+    if (!Array.isArray(parsed.suggestions)) {
+      return [];
+    }
+
+    return parsed.suggestions
+      .filter((suggestion) => suggestion?.pdf && suggestion?.map)
+      .map((suggestion) => ({
+        id: nanoid(10),
+        pdf: {
+          x: Number(suggestion.pdf.x) || 0,
+          y: Number(suggestion.pdf.y) || 0,
+          page: Number(suggestion.pdf.page) || fallbackPage
+        },
+        map: {
+          lon: Number(suggestion.map.lon) || 0,
+          lat: Number(suggestion.map.lat) || 0
+        },
+        confidence: Math.max(
+          0,
+          Math.min(1, Number(suggestion.confidence) || 0)
+        ),
+        rationale: String(suggestion.rationale ?? '').trim()
+      }))
+      .filter(
+        (suggestion) =>
+          Number.isFinite(suggestion.map.lon) &&
+          Number.isFinite(suggestion.map.lat)
+      );
+  } catch {
+    return [];
+  }
+}
+
 /**
  * Optional AI-backed adapter configured from env, never hardcoded in source.
  */
@@ -86,6 +147,89 @@ export class RemoteGeorefSuggestionAdapter implements GeorefSuggestionAdapter {
       confidence: suggestion.confidence,
       rationale: suggestion.rationale
     }));
+  }
+}
+
+/**
+ * Gemini-backed adapter for georeference point suggestions.
+ */
+export class GeminiGeorefSuggestionAdapter implements GeorefSuggestionAdapter {
+  constructor(
+    private readonly apiKey: string,
+    private readonly fallback: GeorefSuggestionAdapter = new HeuristicGeorefSuggestionAdapter()
+  ) {}
+
+  async suggestPoints(
+    request: GeorefSuggestionRequest
+  ): Promise<GeorefSuggestion[]> {
+    if (!this.apiKey) {
+      return this.fallback.suggestPoints(request);
+    }
+
+    const genAI = new GoogleGenerativeAI(this.apiKey);
+
+    try {
+      const model = genAI.getGenerativeModel({
+        model: 'gemini-1.5-flash',
+        generationConfig: {
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: SchemaType.OBJECT,
+            properties: {
+              suggestions: {
+                type: SchemaType.ARRAY,
+                items: {
+                  type: SchemaType.OBJECT,
+                  properties: {
+                    pdf: {
+                      type: SchemaType.OBJECT,
+                      properties: {
+                        x: { type: SchemaType.NUMBER },
+                        y: { type: SchemaType.NUMBER },
+                        page: { type: SchemaType.NUMBER }
+                      },
+                      required: ['x', 'y']
+                    },
+                    map: {
+                      type: SchemaType.OBJECT,
+                      properties: {
+                        lon: { type: SchemaType.NUMBER },
+                        lat: { type: SchemaType.NUMBER }
+                      },
+                      required: ['lon', 'lat']
+                    },
+                    confidence: { type: SchemaType.NUMBER },
+                    rationale: { type: SchemaType.STRING }
+                  },
+                  required: ['pdf', 'map', 'confidence', 'rationale']
+                }
+              }
+            },
+            required: ['suggestions']
+          }
+        }
+      });
+
+      const prompt =
+        `Suggest exactly 4 georeference control point pairs for page ${request.page}. ` +
+        `Map center: lon ${request.mapCenter.lon}, lat ${request.mapCenter.lat}. ` +
+        `Map bounds: west ${request.mapBounds.west}, south ${request.mapBounds.south}, east ${request.mapBounds.east}, north ${request.mapBounds.north}. ` +
+        'Return balanced corner-like points across the extent. Use approximate PDF pixel coordinates in a 0-1200 range and include confidence from 0.0 to 1.0 with concise rationale.';
+
+      const result = await model.generateContent(prompt);
+      const parsed = parseGeorefSuggestionResponse(
+        result.response.text(),
+        request.page
+      );
+
+      if (parsed.length > 0) {
+        return parsed.slice(0, 4);
+      }
+
+      return this.fallback.suggestPoints(request);
+    } catch {
+      return this.fallback.suggestPoints(request);
+    }
   }
 }
 
@@ -162,4 +306,6 @@ export const defaultGeorefSuggestionAdapter: GeorefSuggestionAdapter =
         aiEnv.GEOREF_SUGGESTION_PROXY_URL,
         aiEnv.GEMINI_API_KEY
       )
-    : new HeuristicGeorefSuggestionAdapter();
+    : aiEnv.GEMINI_API_KEY
+      ? new GeminiGeorefSuggestionAdapter(aiEnv.GEMINI_API_KEY)
+      : new HeuristicGeorefSuggestionAdapter();

@@ -1,5 +1,7 @@
 import {
+  GeminiGeorefSuggestionAdapter,
   HeuristicGeorefSuggestionAdapter,
+  parseGeorefSuggestionResponse,
   RemoteGeorefSuggestionAdapter
 } from 'app/lib/georef_suggestion_adapter';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -111,6 +113,54 @@ describe('georef_suggestion_adapter', () => {
           'Content-Type': 'application/json'
         }
       })
+    );
+  });
+
+  it('parses model georef suggestions and clamps confidence', () => {
+    const parsed = parseGeorefSuggestionResponse(
+      JSON.stringify({
+        suggestions: [
+          {
+            pdf: { x: 100, y: 200 },
+            map: { lon: -122.4, lat: 37.7 },
+            confidence: 1.4,
+            rationale: 'corner candidate'
+          },
+          {
+            pdf: { x: 300, y: 400, page: 9 },
+            map: { lon: -122.3, lat: 37.8 },
+            confidence: -0.2,
+            rationale: 'edge candidate'
+          }
+        ]
+      }),
+      3
+    );
+
+    expect(parsed).toHaveLength(2);
+    expect(parsed[0].pdf.page).toBe(3);
+    expect(parsed[0].confidence).toBe(1);
+    expect(parsed[1].pdf.page).toBe(9);
+    expect(parsed[1].confidence).toBe(0);
+  });
+
+  it('falls back to heuristic suggestions when Gemini key is missing', async () => {
+    const adapter = new GeminiGeorefSuggestionAdapter('');
+
+    const suggestions = await adapter.suggestPoints({
+      page: 2,
+      mapCenter: { lon: -122.45, lat: 37.76 },
+      mapBounds: {
+        west: -122.52,
+        south: 37.7,
+        east: -122.39,
+        north: 37.82
+      }
+    });
+
+    expect(suggestions).toHaveLength(4);
+    expect(suggestions.every((suggestion) => suggestion.pdf.page === 2)).toBe(
+      true
     );
   });
 });
