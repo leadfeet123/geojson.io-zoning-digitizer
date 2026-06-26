@@ -1,5 +1,5 @@
 import { GitHubLogoIcon } from '@radix-ui/react-icons';
-import { toGeoJSON } from 'app/lib/export_pipeline';
+import { toGeoJSON, guardExport } from 'app/lib/export_pipeline';
 import { validateFeatureCollection } from 'app/lib/validation_engine';
 import { useAtomValue, useSetAtom } from 'jotai';
 import { memo, useCallback, useRef, type ChangeEvent } from 'react';
@@ -79,6 +79,16 @@ export const MenuBar = memo(function MenuBar() {
     if (blockingErrors.length > 0) {
       toast.error(
         `Export blocked by ${blockingErrors.length} validation errors`
+      );
+      return;
+    }
+
+    const guard = guardExport(digitizerFeatures);
+    if (!guard.ok) {
+      const detail = guard.errors.map((err) => `• ${err.message}`).join('\n');
+      toast.error(
+        `Export blocked: ${guard.errors.length} feature${guard.errors.length === 1 ? '' : 's'} need confirmation.\n${detail}`,
+        { duration: 8000 }
       );
       return;
     }

@@ -429,8 +429,21 @@ export function FeatureEditor({
           <span className="text-xs font-medium uppercase tracking-wide text-gray-600 dark:text-gray-300">
             Confidence
           </span>
-          <div className="mt-1 px-3 py-2 rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-sm text-gray-800 dark:text-gray-100">
+          <div
+            className={`mt-1 px-3 py-2 rounded border text-sm ${
+              feature.properties.confidence < 0.5 &&
+              !feature.properties.human_confirmed
+                ? 'border-amber-400 bg-amber-50 text-amber-800 dark:border-amber-600 dark:bg-amber-900/20 dark:text-amber-300'
+                : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-gray-100'
+            }`}
+          >
             {feature.properties.confidence.toFixed(2)}
+            {feature.properties.confidence < 0.5 &&
+              !feature.properties.human_confirmed && (
+                <span className="ml-2 text-[10px] font-medium">
+                  Low confidence — confirm before export
+                </span>
+              )}
           </div>
           {fieldErrors.confidence && (
             <InlineError>{fieldErrors.confidence}</InlineError>

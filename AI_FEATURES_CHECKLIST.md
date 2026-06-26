@@ -31,10 +31,10 @@ This checklist tracks practical Gemini-enabled features for the zoning digitizer
 
 ## 4. Low-Confidence Guardrails (No.4)
 
-- [ ] Flag confidence < 0.5 suggestions in editor UI
-- [ ] Block export for low-confidence, unconfirmed features with clear errors
-- [ ] Add quick navigation from export errors to affected features
-- [ ] Add tests for block/unblock export paths
+- [x] Flag confidence < 0.5 suggestions in editor UI
+- [x] Block export for low-confidence, unconfirmed features with clear errors
+- [x] Add quick navigation from export errors to affected features
+- [x] Add tests for block/unblock export paths
 
 ## 5. Cross-Cutting Quality
 
