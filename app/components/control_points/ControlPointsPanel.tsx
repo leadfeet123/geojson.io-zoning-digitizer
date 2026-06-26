@@ -52,6 +52,18 @@ function sourceBadgeClass(source: string): string {
   return 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200';
 }
 
+function fallbackHintText(source: string): string {
+  if (source === 'Proxy') {
+    return 'Retry will call your configured proxy again. Automatic fallback is disabled while a proxy URL is configured.';
+  }
+
+  if (source === 'Gemini') {
+    return 'Retry will call Gemini again. If Gemini is unavailable, suggestions fall back to the built-in heuristic adapter.';
+  }
+
+  return 'Using built-in heuristic suggestions because no AI endpoint is configured.';
+}
+
 /**
  * Step 1 control-point workflow UI: add pairs, review coordinates, and confirm points.
  */
@@ -291,8 +303,23 @@ export function ControlPointsPanel({
             Review each suggestion, edit lon/lat if needed, then add to control
             points.
           </p>
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            {fallbackHintText(defaultGeorefSuggestionSource)}
+          </p>
           {suggestionError && (
-            <p className="mt-1 text-xs text-red-600">{suggestionError}</p>
+            <div className="mt-1 flex items-center gap-2">
+              <p className="text-xs text-red-600">{suggestionError}</p>
+              <button
+                type="button"
+                onClick={() => {
+                  void requestSuggestions();
+                }}
+                disabled={isSuggesting || !map}
+                className="px-2 py-1 text-[10px] rounded border border-red-300 text-red-700 dark:border-red-700 dark:text-red-300 disabled:opacity-50"
+              >
+                Retry
+              </button>
+            </div>
           )}
           {suggestions.length > 0 && (
             <div className="mt-2 space-y-2">
