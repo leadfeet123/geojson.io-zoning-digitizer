@@ -85,6 +85,16 @@ export function ControlPointsPanel({
   const [suggestions, setSuggestions] = useState<GeorefSuggestion[]>([]);
   const [isSuggesting, setIsSuggesting] = useState(false);
   const [suggestionError, setSuggestionError] = useState<string | null>(null);
+  const sortedSuggestions = useMemo(
+    () => [...suggestions].sort((a, b) => b.confidence - a.confidence),
+    [suggestions]
+  );
+  const lowConfidenceCount = useMemo(
+    () =>
+      sortedSuggestions.filter((suggestion) => suggestion.confidence < 0.5)
+        .length,
+    [sortedSuggestions]
+  );
 
   const confirmedCount = controlPoints.filter(
     (point) => point.confirmed
@@ -321,17 +331,32 @@ export function ControlPointsPanel({
               </button>
             </div>
           )}
-          {suggestions.length > 0 && (
+          {sortedSuggestions.length > 0 && (
             <div className="mt-2 space-y-2">
-              {suggestions.map((suggestion) => (
+              {lowConfidenceCount > 0 && (
+                <p className="text-xs text-amber-700 dark:text-amber-300">
+                  {lowConfidenceCount} low-confidence suggestion
+                  {lowConfidenceCount === 1 ? '' : 's'} below 50% are flagged.
+                </p>
+              )}
+              {sortedSuggestions.map((suggestion) => (
                 <div
                   key={suggestion.id}
-                  className="border border-gray-200 dark:border-gray-700 rounded p-2"
+                  className={
+                    suggestion.confidence < 0.5
+                      ? 'border border-amber-300 dark:border-amber-700 rounded p-2 bg-amber-50/50 dark:bg-amber-900/10'
+                      : 'border border-gray-200 dark:border-gray-700 rounded p-2'
+                  }
                 >
                   <p className="text-xs text-gray-700 dark:text-gray-200">
                     PDF ({formatPixel(suggestion.pdf.x)},{' '}
                     {formatPixel(suggestion.pdf.y)}) p{suggestion.pdf.page}
                   </p>
+                  {suggestion.confidence < 0.5 && (
+                    <p className="mt-1 text-[10px] font-medium text-amber-700 dark:text-amber-300">
+                      Low confidence: review carefully before adding.
+                    </p>
+                  )}
                   <p className="text-xs text-gray-600 dark:text-gray-300">
                     Confidence {(suggestion.confidence * 100).toFixed(0)}%:{' '}
                     {suggestion.rationale}
