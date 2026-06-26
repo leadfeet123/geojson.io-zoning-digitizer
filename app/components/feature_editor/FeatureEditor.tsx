@@ -1,7 +1,7 @@
 import { defaultClassificationAdapter } from 'app/lib/classification_adapter';
 import { InlineError } from 'app/components/inline_error';
 import { useAtom } from 'jotai';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { extractedLegendAtom } from 'state/digitizer';
 import type {
   AiSuggestion,
@@ -47,6 +47,7 @@ export function FeatureEditor({
   const [classSuggestions, setClassSuggestions] = useState<
     Array<{ planning_class: string; confidence: number; rationale: string }>
   >([]);
+  const [municipalityContext, setMunicipalityContext] = useState('');
   if (!selectedFeature) {
     return (
       <section className="h-full w-full p-4 bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700">
@@ -61,6 +62,12 @@ export function FeatureEditor({
   }
 
   const feature = selectedFeature;
+
+  useEffect(() => {
+    setMunicipalityContext('');
+    setClassSuggestions([]);
+    setClassSuggestionError(null);
+  }, [feature.id]);
 
   const fieldErrors = groupValidationResults(feature.id, validationResults);
 
@@ -92,7 +99,8 @@ export function FeatureEditor({
     try {
       const suggestions =
         await defaultClassificationAdapter.suggestPlanningClass({
-          rawZoningLabel: label
+          rawZoningLabel: label,
+          municipality: municipalityContext.trim() || undefined
         });
 
       setClassSuggestions(suggestions);
@@ -243,6 +251,19 @@ export function FeatureEditor({
           {fieldErrors.planning_class && (
             <InlineError>{fieldErrors.planning_class}</InlineError>
           )}
+
+          <div className="mt-2">
+            <span className="text-xs font-medium uppercase tracking-wide text-gray-600 dark:text-gray-300">
+              Municipality context (optional)
+            </span>
+            <input
+              type="text"
+              value={municipalityContext}
+              onChange={(event) => setMunicipalityContext(event.target.value)}
+              placeholder="e.g., San Jose, CA"
+              className="mt-1 w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm"
+            />
+          </div>
 
           <div className="mt-2 flex items-center gap-2">
             <button

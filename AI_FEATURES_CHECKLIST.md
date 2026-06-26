@@ -9,7 +9,7 @@ This checklist tracks practical Gemini-enabled features for the zoning digitizer
 - [x] Add unit tests for parser and fallback behavior
 - [x] Wire digitizer feature editor into active digitizer UI
 - [x] Add explicit accept/reject persistence controls for suggestions
-- [ ] Add municipality context input for improved classification quality
+- [x] Add municipality context input for improved classification quality
 - [ ] Add integration test for suggest -> apply workflow
 
 ## 2. Georeference AI Suggestions (No.2)
