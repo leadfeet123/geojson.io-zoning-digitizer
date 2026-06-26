@@ -3,7 +3,11 @@ import { InlineError } from 'app/components/inline_error';
 import { useAtom } from 'jotai';
 import { useState } from 'react';
 import { extractedLegendAtom } from 'state/digitizer';
-import type { DigitizerFeature, ValidationResult } from 'types/digitizer';
+import type {
+  AiSuggestion,
+  DigitizerFeature,
+  ValidationResult
+} from 'types/digitizer';
 
 interface FeatureEditorProps {
   selectedFeature: DigitizerFeature | null;
@@ -114,17 +118,85 @@ export function FeatureEditor({
     suggestion: { planning_class: string; confidence: number },
     selectedIndex: number
   ): void {
+    const currentSuggestions = feature.properties.ai_suggestions ?? [];
+    const nonPlanningClassSuggestions = currentSuggestions.filter(
+      (item) => item.field !== 'planning_class'
+    );
+    const existingPlanningClassByValue = new Map(
+      currentSuggestions
+        .filter((item) => item.field === 'planning_class')
+        .map((item) => [item.value, item])
+    );
+
+    const nextPlanningClassSuggestions: AiSuggestion[] = classSuggestions.map(
+      (item, index) => ({
+        field: 'planning_class',
+        value: item.planning_class,
+        confidence: item.confidence,
+        accepted:
+          index === selectedIndex
+            ? true
+            : (existingPlanningClassByValue.get(item.planning_class)
+                ?.accepted ?? null)
+      })
+    );
+
     updateProperties({
       planning_class: suggestion.planning_class,
       confidence: suggestion.confidence,
       human_confirmed: false,
-      ai_suggestions: classSuggestions.map((item, index) => ({
+      ai_suggestions: [
+        ...nonPlanningClassSuggestions,
+        ...nextPlanningClassSuggestions
+      ]
+    });
+  }
+
+  function rejectPlanningClassSuggestion(suggestion: {
+    planning_class: string;
+    confidence: number;
+  }): void {
+    const currentSuggestions = feature.properties.ai_suggestions ?? [];
+    const nonPlanningClassSuggestions = currentSuggestions.filter(
+      (item) => item.field !== 'planning_class'
+    );
+    const existingPlanningClassByValue = new Map(
+      currentSuggestions
+        .filter((item) => item.field === 'planning_class')
+        .map((item) => [item.value, item])
+    );
+
+    const nextPlanningClassSuggestions: AiSuggestion[] = classSuggestions.map(
+      (item) => ({
         field: 'planning_class',
         value: item.planning_class,
         confidence: item.confidence,
-        accepted: index === selectedIndex
-      }))
+        accepted:
+          item.planning_class === suggestion.planning_class
+            ? false
+            : (existingPlanningClassByValue.get(item.planning_class)
+                ?.accepted ?? null)
+      })
+    );
+
+    updateProperties({
+      human_confirmed: false,
+      ai_suggestions: [
+        ...nonPlanningClassSuggestions,
+        ...nextPlanningClassSuggestions
+      ]
     });
+  }
+
+  function getPlanningSuggestionDecision(
+    planningClass: string
+  ): boolean | null {
+    const item = feature.properties.ai_suggestions?.find(
+      (entry) =>
+        entry.field === 'planning_class' && entry.value === planningClass
+    );
+
+    return item?.accepted ?? null;
   }
 
   return (
@@ -197,18 +269,42 @@ export function FeatureEditor({
                   className="rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-2"
                 >
                   <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs text-gray-600 dark:text-gray-300">
+                      {getPlanningSuggestionDecision(
+                        suggestion.planning_class
+                      ) === true
+                        ? 'Accepted'
+                        : getPlanningSuggestionDecision(
+                              suggestion.planning_class
+                            ) === false
+                          ? 'Rejected'
+                          : 'Pending'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
                     <span className="text-sm text-gray-900 dark:text-gray-100">
                       {suggestion.planning_class}
                     </span>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        applyPlanningClassSuggestion(suggestion, index)
-                      }
-                      className="px-2 py-1 text-xs rounded border border-gray-300 dark:border-gray-600"
-                    >
-                      Apply
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          applyPlanningClassSuggestion(suggestion, index)
+                        }
+                        className="px-2 py-1 text-xs rounded border border-gray-300 dark:border-gray-600"
+                      >
+                        Accept
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          rejectPlanningClassSuggestion(suggestion)
+                        }
+                        className="px-2 py-1 text-xs rounded border border-gray-300 dark:border-gray-600"
+                      >
+                        Reject
+                      </button>
+                    </div>
                   </div>
                   <div className="mt-1 text-xs text-gray-600 dark:text-gray-300">
                     Confidence: {(suggestion.confidence * 100).toFixed(0)}%

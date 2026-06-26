@@ -8,7 +8,7 @@ This checklist tracks practical Gemini-enabled features for the zoning digitizer
 - [x] Add "Suggest Planning Class" action and apply flow in digitizer feature editor
 - [x] Add unit tests for parser and fallback behavior
 - [x] Wire digitizer feature editor into active digitizer UI
-- [ ] Add explicit accept/reject persistence controls for suggestions
+- [x] Add explicit accept/reject persistence controls for suggestions
 - [ ] Add municipality context input for improved classification quality
 - [ ] Add integration test for suggest -> apply workflow
 
