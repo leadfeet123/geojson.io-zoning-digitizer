@@ -196,6 +196,42 @@ export function FeatureEditor({
     });
   }
 
+  function overridePlanningClassSuggestions(): void {
+    const currentSuggestions = feature.properties.ai_suggestions ?? [];
+    const nonPlanningClassSuggestions = currentSuggestions.filter(
+      (item) => item.field !== 'planning_class'
+    );
+
+    const nextPlanningClassSuggestions: AiSuggestion[] = classSuggestions.map(
+      (item) => ({
+        field: 'planning_class',
+        value: item.planning_class,
+        confidence: item.confidence,
+        accepted: false
+      })
+    );
+
+    updateProperties({
+      human_confirmed: false,
+      ai_suggestions: [
+        ...nonPlanningClassSuggestions,
+        ...nextPlanningClassSuggestions
+      ]
+    });
+  }
+
+  function isPlanningClassOverridden(): boolean {
+    const planningSuggestions = feature.properties.ai_suggestions?.filter(
+      (entry) => entry.field === 'planning_class'
+    );
+
+    if (!planningSuggestions || planningSuggestions.length === 0) {
+      return false;
+    }
+
+    return planningSuggestions.every((entry) => entry.accepted === false);
+  }
+
   function getPlanningSuggestionDecision(
     planningClass: string
   ): boolean | null {
@@ -298,7 +334,9 @@ export function FeatureEditor({
                         : getPlanningSuggestionDecision(
                               suggestion.planning_class
                             ) === false
-                          ? 'Rejected'
+                          ? isPlanningClassOverridden()
+                            ? 'Overridden'
+                            : 'Rejected'
                           : 'Pending'}
                     </span>
                   </div>
@@ -324,6 +362,13 @@ export function FeatureEditor({
                         className="px-2 py-1 text-xs rounded border border-gray-300 dark:border-gray-600"
                       >
                         Reject
+                      </button>
+                      <button
+                        type="button"
+                        onClick={overridePlanningClassSuggestions}
+                        className="px-2 py-1 text-xs rounded border border-gray-300 dark:border-gray-600"
+                      >
+                        Override
                       </button>
                     </div>
                   </div>

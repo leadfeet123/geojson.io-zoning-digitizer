@@ -24,7 +24,7 @@ This checklist tracks practical Gemini-enabled features for the zoning digitizer
 
 ## 3. Human-in-the-Loop Controls (No.3)
 
-- [ ] Add explicit accept/reject/override controls for AI suggestions
+- [x] Add explicit accept/reject/override controls for AI suggestions
 - [ ] Record per-suggestion decision history on feature properties
 - [ ] Ensure no AI operation auto-sets human_confirmed=true
 - [ ] Add tests proving explicit human action is required

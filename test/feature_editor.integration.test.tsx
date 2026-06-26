@@ -144,4 +144,82 @@ describe('FeatureEditor integration', () => {
       root.unmount();
     });
   });
+
+  it('supports explicit override for planning-class AI suggestions', async () => {
+    const feature = makeFeature({
+      properties: {
+        planning_class: 'Custom Mixed Use',
+        raw_zoning_label: 'C-2',
+        confidence: 0.2,
+        source_type: 'digitized',
+        source_name: 'example.pdf',
+        human_confirmed: false
+      }
+    });
+    const onFeatureChange = vi.fn();
+
+    suggestPlanningClassMock.mockResolvedValue([
+      {
+        planning_class: 'Commercial',
+        confidence: 0.81,
+        rationale: 'Municipal code mapping'
+      }
+    ]);
+
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(
+        <FeatureEditor
+          selectedFeature={feature}
+          validationResults={[]}
+          onFeatureChange={onFeatureChange}
+        />
+      );
+    });
+
+    const suggestButton = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent?.includes('Suggest Planning Class')
+    ) as HTMLButtonElement | undefined;
+
+    expect(suggestButton).toBeDefined();
+
+    await act(async () => {
+      suggestButton!.click();
+    });
+
+    const overrideButton = Array.from(
+      container.querySelectorAll('button')
+    ).find((button) => button.textContent?.trim() === 'Override') as
+      | HTMLButtonElement
+      | undefined;
+
+    expect(overrideButton).toBeDefined();
+
+    await act(async () => {
+      overrideButton!.click();
+    });
+
+    const lastCallArg = onFeatureChange.mock.calls.at(-1)?.[0] as
+      | DigitizerFeature
+      | undefined;
+
+    expect(lastCallArg).toBeDefined();
+    expect(lastCallArg?.properties.planning_class).toBe('Custom Mixed Use');
+    expect(lastCallArg?.properties.human_confirmed).toBe(false);
+    expect(lastCallArg?.properties.ai_suggestions).toEqual([
+      {
+        field: 'planning_class',
+        value: 'Commercial',
+        confidence: 0.81,
+        accepted: false
+      }
+    ]);
+
+    await act(async () => {
+      root.unmount();
+    });
+  });
 });
