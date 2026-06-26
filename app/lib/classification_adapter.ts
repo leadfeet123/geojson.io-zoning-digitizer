@@ -1,5 +1,8 @@
 import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
 import { aiEnv } from 'app/lib/env_ai';
+import { logAiError } from 'app/lib/ai_logger';
+
+const GEMINI_TIMEOUT_MS = 15_000;
 
 export interface ClassificationSuggestion {
   planning_class: string;
@@ -133,6 +136,8 @@ export class GeminiClassificationAdapter implements ClassificationAdapter {
     }
 
     const genAI = new GoogleGenerativeAI(this.apiKey);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), GEMINI_TIMEOUT_MS);
 
     try {
       const model = genAI.getGenerativeModel({
@@ -177,8 +182,11 @@ export class GeminiClassificationAdapter implements ClassificationAdapter {
       }
 
       return this.fallback.suggestPlanningClass(request);
-    } catch {
+    } catch (error) {
+      logAiError('classification', error);
       return this.fallback.suggestPlanningClass(request);
+    } finally {
+      clearTimeout(timer);
     }
   }
 }

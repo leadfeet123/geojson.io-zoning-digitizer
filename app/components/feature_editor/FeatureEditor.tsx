@@ -2,7 +2,7 @@ import { defaultClassificationAdapter } from 'app/lib/classification_adapter';
 import { recordSuggestionDecision } from 'app/lib/ai_suggestion_helpers';
 import { InlineError } from 'app/components/inline_error';
 import { useAtom } from 'jotai';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { extractedLegendAtom } from 'state/digitizer';
 import type {
   AiSuggestion,
@@ -49,6 +49,7 @@ export function FeatureEditor({
     Array<{ planning_class: string; confidence: number; rationale: string }>
   >([]);
   const [municipalityContext, setMunicipalityContext] = useState('');
+  const abortClassSuggestionRef = useRef<AbortController | null>(null);
   if (!selectedFeature) {
     return (
       <section className="h-full w-full p-4 bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700">
@@ -68,6 +69,8 @@ export function FeatureEditor({
     setMunicipalityContext('');
     setClassSuggestions([]);
     setClassSuggestionError(null);
+    abortClassSuggestionRef.current?.abort();
+    abortClassSuggestionRef.current = null;
   }, [feature.id]);
 
   const fieldErrors = groupValidationResults(feature.id, validationResults);
@@ -94,6 +97,10 @@ export function FeatureEditor({
       return;
     }
 
+    abortClassSuggestionRef.current?.abort();
+    const controller = new AbortController();
+    abortClassSuggestionRef.current = controller;
+
     setIsSuggestingClass(true);
     setClassSuggestionError(null);
 
@@ -104,6 +111,8 @@ export function FeatureEditor({
           municipality: municipalityContext.trim() || undefined
         });
 
+      if (controller.signal.aborted) return;
+
       setClassSuggestions(suggestions);
 
       if (suggestions.length === 0) {
@@ -112,6 +121,7 @@ export function FeatureEditor({
         );
       }
     } catch (error) {
+      if (controller.signal.aborted) return;
       setClassSuggestionError(
         error instanceof Error
           ? error.message
@@ -119,8 +129,17 @@ export function FeatureEditor({
       );
       setClassSuggestions([]);
     } finally {
-      setIsSuggestingClass(false);
+      if (!controller.signal.aborted) {
+        setIsSuggestingClass(false);
+      }
     }
+  }
+
+  function cancelPlanningClassSuggestion(): void {
+    abortClassSuggestionRef.current?.abort();
+    abortClassSuggestionRef.current = null;
+    setIsSuggestingClass(false);
+    setClassSuggestionError(null);
   }
 
   function applyPlanningClassSuggestion(
@@ -337,8 +356,17 @@ export function FeatureEditor({
               disabled={isSuggestingClass}
               className="px-3 py-1 text-xs rounded border border-gray-300 dark:border-gray-600 disabled:opacity-50"
             >
-              {isSuggestingClass ? 'Suggesting...' : 'Suggest Planning Class'}
+              {isSuggestingClass ? 'Suggesting…' : 'Suggest Planning Class'}
             </button>
+            {isSuggestingClass && (
+              <button
+                type="button"
+                onClick={cancelPlanningClassSuggestion}
+                className="px-3 py-1 text-xs rounded border border-gray-300 dark:border-gray-600"
+              >
+                Cancel
+              </button>
+            )}
           </div>
 
           {classSuggestionError && (

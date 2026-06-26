@@ -27,6 +27,47 @@ npm install
 
 Copy `.env.example` to `.env` and add your public Mapbox token as `VITE_PUBLIC_MAPBOX_TOKEN`.
 
+## AI Features
+
+The digitizer includes optional Gemini-backed AI assistance. All AI features degrade gracefully when not configured.
+
+### Environment variables
+
+| Variable                           | Purpose                                                                             | Required |
+| ---------------------------------- | ----------------------------------------------------------------------------------- | -------- |
+| `VITE_GEMINI_API_KEY`              | Enables Gemini classification, OCR legend extraction, and georeference suggestions  | No       |
+| `VITE_GEOREF_SUGGESTION_PROXY_URL` | Proxy endpoint for georeference suggestions (takes priority over direct Gemini key) | No       |
+
+### Feature behaviour and fallback order
+
+**Planning-class suggestions** (`Suggest Planning Class` button in the feature editor):
+
+- With key → calls Gemini, returns up to 3 ranked suggestions with confidence and rationale
+- Without key → uses a deterministic prefix-lookup table (R→Residential, C→Commercial, etc.)
+- Each suggestion has explicit Accept / Reject / Override controls; decisions are persisted per feature
+- `human_confirmed` is never set automatically — it requires a user checkbox click
+
+**Georeference point suggestions** (`Suggest 4 Points` in the Control Points panel):
+
+- Proxy URL set → calls your proxy (forwarding `X-Gemini-Api-Key` header if key is also set)
+- Key set, no proxy → calls Gemini directly
+- Neither → uses built-in heuristic estimation
+- Source badge in the UI shows which adapter is active
+
+**OCR legend extraction** (`Crop Legend` → drag to select legend region):
+
+- With key → sends image region to Gemini Vision for structured legend parsing
+- Without key → returns null (no legend extracted)
+
+### Human-in-the-loop guarantee
+
+Features with `confidence < 0.5` that are not yet human-confirmed are:
+
+- Visually flagged in the feature editor (amber styling)
+- Blocked from export with a clear error message listing each affected feature
+
+No AI-suggested value enters the export unless a human explicitly accepts it.
+
 If you wire the experimental AI georeference suggestion service, configure only a proxy endpoint in local `.env`:
 
 - `VITE_GEOREF_SUGGESTION_PROXY_URL`

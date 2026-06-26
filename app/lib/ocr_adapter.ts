@@ -1,5 +1,8 @@
 import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
 import { aiEnv } from 'app/lib/env_ai';
+import { logAiError } from 'app/lib/ai_logger';
+
+const GEMINI_TIMEOUT_MS = 20_000;
 
 export interface LegendItem {
   color: string;
@@ -41,6 +44,8 @@ export class GeminiOcrAdapter implements OcrAdapter {
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), GEMINI_TIMEOUT_MS);
 
     // The base64Image comes as a data URL (e.g., 'data:image/jpeg;base64,...')
     // We need to strip the prefix for the API.
@@ -103,8 +108,10 @@ export class GeminiOcrAdapter implements OcrAdapter {
 
       return parseLegendResponse(jsonStr);
     } catch (error) {
-      console.error('Error extracting legend with Gemini:', error);
+      logAiError('ocr', error);
       return null;
+    } finally {
+      clearTimeout(timer);
     }
   }
 }

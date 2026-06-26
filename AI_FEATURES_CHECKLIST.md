@@ -38,7 +38,7 @@ This checklist tracks practical Gemini-enabled features for the zoning digitizer
 
 ## 5. Cross-Cutting Quality
 
-- [ ] Add timeout/cancellation states for AI requests
-- [ ] Add safe error logging without secrets
-- [ ] Update README docs for AI behavior and fallback paths
-- [ ] Run full test suite and build validation after each feature batch
+- [x] Add timeout/cancellation states for AI requests
+- [x] Add safe error logging without secrets
+- [x] Update README docs for AI behavior and fallback paths
+- [x] Run full test suite and build validation after each feature batch

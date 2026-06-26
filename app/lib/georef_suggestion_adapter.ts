@@ -1,6 +1,9 @@
 import { aiEnv } from 'app/lib/env_ai';
 import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
+import { logAiError } from 'app/lib/ai_logger';
 import { nanoid } from 'nanoid';
+
+const GEMINI_TIMEOUT_MS = 15_000;
 
 export type GeorefSuggestionSource = 'Proxy' | 'Gemini' | 'Heuristic';
 
@@ -184,6 +187,8 @@ export class GeminiGeorefSuggestionAdapter implements GeorefSuggestionAdapter {
     }
 
     const genAI = new GoogleGenerativeAI(this.apiKey);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), GEMINI_TIMEOUT_MS);
 
     try {
       const model = genAI.getGenerativeModel({
@@ -244,8 +249,11 @@ export class GeminiGeorefSuggestionAdapter implements GeorefSuggestionAdapter {
       }
 
       return this.fallback.suggestPoints(request);
-    } catch {
+    } catch (error) {
+      logAiError('georef', error);
       return this.fallback.suggestPoints(request);
+    } finally {
+      clearTimeout(timer);
     }
   }
 }
