@@ -270,8 +270,16 @@ export class OpenCvExtractionEngine implements SpatialExtractionEngine {
       for (let i = 0; i < contours.size(); i++) {
         const contour = contours.get(i);
         const area = cv.contourArea(contour);
+        const perimeter = cv.arcLength(contour, true);
 
-        if (area > 100) {
+        // Filter out very small noise specs
+        // and filter out long/thin shapes (like drawn parcel lines) using circularity/isoperimetric quotient
+        // 4 * PI * Area / Perimeter^2. Thin lines are typically < 0.05
+        const circularity =
+          perimeter > 0 ? (4 * Math.PI * area) / (perimeter * perimeter) : 0;
+
+        // Using 400 as base area to restrict extreme tiny speckles.
+        if (area > 400 && circularity > 0.04) {
           const approx = new cv.Mat();
           const epsilon = 0.01 * cv.arcLength(contour, true);
           cv.approxPolyDP(contour, approx, epsilon, true);

@@ -70,6 +70,7 @@
     "@turf/distance": "^6.5.0",
     "@turf/helpers": "^6.5.0",
     "@turf/intersect": "^7.3.5",
+    "@turf/kinks": "^7.3.5",
     "@turf/length": "^6.5.0",
     "@turf/meta": "^6.5.0",
     "@turf/nearest-point-on-line": "^6.5.0",

@@ -400,38 +400,56 @@ export function PdfViewer({
         extractedLegend.zones
       );
 
-      const newFeatures: DigitizerFeature[] = extractedPolygons.map((poly) => {
-        // Transform coordinates
-        const mapCoords = poly.pdfCoordinates.map((pt) => {
-          const mapPt = transformPoint(transformResult.transform, pt);
-          return [mapPt.lon, mapPt.lat];
+      const newFeatures: DigitizerFeature[] = extractedPolygons
+        .map((poly) => {
+          // Transform coordinates
+          const mapCoords = poly.pdfCoordinates.map((pt) => {
+            const mapPt = transformPoint(transformResult.transform, pt);
+            return [mapPt.lon, mapPt.lat];
+          });
+
+          // Ensure polygon is closed
+          if (mapCoords.length > 0) {
+            const first = mapCoords[0];
+            const last = mapCoords[mapCoords.length - 1];
+            if (first[0] !== last[0] || first[1] !== last[1]) {
+              mapCoords.push([...first]);
+            }
+          }
+
+          // Generate the base feature
+          const feature: DigitizerFeature = {
+            id: generateId(),
+            geometry: {
+              type: 'Polygon',
+              coordinates: [mapCoords]
+            },
+            properties: {
+              planning_class: poly.legendItem.description,
+              raw_zoning_label: poly.legendItem.code,
+              confidence: 0.5,
+              source_type: 'digitized',
+              source_name: file ? file.name : 'extracted_shapes',
+              human_confirmed: false
+            }
+          };
+
+          return feature;
+        })
+        .filter((feature) => {
+          try {
+            // Filter out self-intersecting polygons natively using turf
+            const turfKinks = require('@turf/kinks').default;
+            const kinks = turfKinks(feature);
+            if (kinks && kinks.features && kinks.features.length > 0) {
+              return false;
+            }
+            return true;
+          } catch (e) {
+            // if turf fails, still return true (prefer over rejecting valid data)
+            return true;
+          }
         });
-
-        // Ensure polygon is closed
-        if (mapCoords.length > 0) {
-          const first = mapCoords[0];
-          const last = mapCoords[mapCoords.length - 1];
-          if (first[0] !== last[0] || first[1] !== last[1]) {
-            mapCoords.push([...first]);
-          }
-        }
-
-        return {
-          id: generateId(),
-          geometry: {
-            type: 'Polygon',
-            coordinates: [mapCoords]
-          },
-          properties: {
-            planning_class: poly.legendItem.description,
-            raw_zoning_label: poly.legendItem.code,
-            confidence: 0.5,
-            source_type: 'digitized',
-            source_name: file ? file.name : 'extracted_shapes',
-            human_confirmed: false
-          }
-        };
-      });
 
       setDigitizerFeatures((prev) => [...prev, ...newFeatures]);
       alert(`Successfully extracted ${newFeatures.length} shapes.`);
