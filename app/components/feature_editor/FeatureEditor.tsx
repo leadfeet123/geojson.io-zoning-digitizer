@@ -14,6 +14,7 @@ interface FeatureEditorProps {
   selectedFeature: DigitizerFeature | null;
   validationResults?: ValidationResult[];
   onFeatureChange: (feature: DigitizerFeature) => void;
+  onFeatureDelete?: (featureId: string) => void;
 }
 
 function groupValidationResults(
@@ -38,7 +39,8 @@ function groupValidationResults(
 export function FeatureEditor({
   selectedFeature,
   validationResults = [],
-  onFeatureChange
+  onFeatureChange,
+  onFeatureDelete
 }: FeatureEditorProps) {
   const [extractedLegend] = useAtom(extractedLegendAtom);
   const [isSuggestingClass, setIsSuggestingClass] = useState(false);
@@ -494,6 +496,18 @@ export function FeatureEditor({
           </span>
         </label>
 
+        {onFeatureDelete && (
+          <div className="pt-2">
+            <button
+              onClick={() => onFeatureDelete(feature.id as string)}
+              type="button"
+              className="text-xs font-semibold text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 border border-red-200 hover:bg-red-50 dark:border-red-900/50 dark:hover:bg-red-900/30 px-3 py-1.5 rounded transition-colors"
+            >
+              Delete Feature
+            </button>
+          </div>
+        )}
+
         <div>
           <span className="text-xs font-medium uppercase tracking-wide text-gray-600 dark:text-gray-300">
             Extracted Legend Rules
@@ -549,6 +563,24 @@ export function FeatureEditor({
 
         {fieldErrors.general && (
           <InlineError>{fieldErrors.general}</InlineError>
+        )}
+
+        {fieldErrors.geometry && (
+          <div className="mt-2 p-2 bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700/50 rounded">
+            <span className="text-xs font-semibold text-yellow-800 dark:text-yellow-300">
+              Geometry Warnings:
+            </span>
+            <ul className="list-disc pl-4 mt-1">
+              {fieldErrors.geometry.map((msg, i) => (
+                <li
+                  key={i}
+                  className="text-xs text-yellow-700 dark:text-yellow-400"
+                >
+                  {msg}
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
       </div>
     </section>

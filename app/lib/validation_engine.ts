@@ -1,4 +1,5 @@
 import { getIssues } from '@placemarkio/check-geojson';
+import turfKinks from '@turf/kinks';
 import type { DigitizerFeature, ValidationResult } from 'types/digitizer';
 
 function isNonEmptyString(value: unknown): value is string {
@@ -14,12 +15,28 @@ function validateGeometry(feature: DigitizerFeature): ValidationResult[] {
     })
   );
 
-  return issues.map((issue) => ({
+  const results: ValidationResult[] = issues.map((issue) => ({
     featureId: feature.id ?? null,
     severity: 'error' as const,
     message: issue.message,
     field: 'geometry' as const
   }));
+
+  try {
+    const k = turfKinks(feature as any);
+    if (k && k.features && k.features.length > 0) {
+      results.push({
+        featureId: feature.id ?? null,
+        severity: 'warning',
+        message: 'Geometry is self-intersecting (kinks detected)',
+        field: 'geometry'
+      });
+    }
+  } catch (e) {
+    // Ignore turf validation errors, stick to base issues
+  }
+
+  return results;
 }
 
 /**

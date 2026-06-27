@@ -46,6 +46,13 @@ export function DigitizerFeaturePanel() {
     );
   }
 
+  function deleteFeature(featureId: string): void {
+    setFeatures((current) => current.filter((f) => f.id !== featureId));
+    if (selectedFeatureId === featureId) {
+      setSelectedFeatureId(null);
+    }
+  }
+
   return (
     <section className="h-[320px] border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 overflow-hidden flex flex-col">
       <header className="px-3 py-2 border-b border-gray-200 dark:border-gray-700 flex items-center gap-2">
@@ -88,6 +95,7 @@ export function DigitizerFeaturePanel() {
           selectedFeature={selectedFeature}
           validationResults={validationResults}
           onFeatureChange={updateFeature}
+          onFeatureDelete={deleteFeature}
         />
       </div>
     </section>
