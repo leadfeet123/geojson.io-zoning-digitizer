@@ -50,6 +50,15 @@ export function FeatureEditor({
   >([]);
   const [municipalityContext, setMunicipalityContext] = useState('');
   const abortClassSuggestionRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    setMunicipalityContext('');
+    setClassSuggestions([]);
+    setClassSuggestionError(null);
+    abortClassSuggestionRef.current?.abort();
+    abortClassSuggestionRef.current = null;
+  }, [selectedFeature?.id]);
+
   if (!selectedFeature) {
     return (
       <section className="h-full w-full p-4 bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700">
@@ -64,14 +73,6 @@ export function FeatureEditor({
   }
 
   const feature = selectedFeature;
-
-  useEffect(() => {
-    setMunicipalityContext('');
-    setClassSuggestions([]);
-    setClassSuggestionError(null);
-    abortClassSuggestionRef.current?.abort();
-    abortClassSuggestionRef.current = null;
-  }, [feature.id]);
 
   const fieldErrors = groupValidationResults(feature.id, validationResults);
 
