@@ -15,6 +15,7 @@ import {
 } from '../../lib/transform_engine';
 import { newFeatureId as generateId } from '../../lib/id';
 import type { DigitizerFeature } from 'types/digitizer';
+import type { ControlPointPair } from 'state/control_points';
 
 type ZoomMode = 'fit' | '100%';
 
@@ -27,15 +28,7 @@ interface PdfViewerProps {
     y: number;
     page: number;
   } | null;
-  controlPoints?: Array<{
-    id: string;
-    pdf: {
-      x: number;
-      y: number;
-      page: number;
-    };
-    confirmed: boolean;
-  }>;
+  controlPoints?: ControlPointPair[];
   activeControlPointId?: string | null;
   onPageChange?: (page: number) => void;
   onPageCountChange?: (pageCount: number) => void;
@@ -450,6 +443,16 @@ export function PdfViewer({
     }
   }, [extractedLegend, controlPoints, file, setDigitizerFeatures]);
 
+  const removeLegendItem = useCallback(
+    (indexToRemove: number) => {
+      if (!extractedLegend) return;
+      const newZones = [...extractedLegend.zones];
+      newZones.splice(indexToRemove, 1);
+      setExtractedLegend({ ...extractedLegend, zones: newZones });
+    },
+    [extractedLegend, setExtractedLegend]
+  );
+
   const handleUploadClick = useCallback(() => {
     fileInputRef.current?.click();
   }, []);
@@ -598,6 +601,37 @@ export function PdfViewer({
                 <p className="text-xs text-amber-700 dark:text-amber-300">
                   First use Crop Legend, then run Extract Shapes.
                 </p>
+              )}
+              {hasLegend && extractedLegend && (
+                <div className="mt-2 text-xs">
+                  <p className="font-medium text-gray-700 dark:text-gray-200 mb-1">
+                    Recognized Legend Filters (remove non-zoning features):
+                  </p>
+                  <ul className="flex flex-wrap gap-1.5 mt-1">
+                    {extractedLegend.zones.map((zone, idx) => (
+                      <li
+                        key={idx}
+                        className="flex items-center gap-1.5 px-2 py-0.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800"
+                      >
+                        <span
+                          className="w-2.5 h-2.5 rounded-full border border-gray-400"
+                          style={{ backgroundColor: zone.color }}
+                        />
+                        <span className="text-gray-700 dark:text-gray-200 font-medium">
+                          {zone.code || zone.description}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => removeLegendItem(idx)}
+                          className="text-gray-400 hover:text-red-600 font-bold ml-1 text-sm leading-none"
+                          title="Do not extract shapes of this color"
+                        >
+                          &times;
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               )}
               {totalControlPointCount >= 3 &&
                 confirmedControlPointCount < 3 && (
