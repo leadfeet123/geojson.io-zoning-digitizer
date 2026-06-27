@@ -91,6 +91,9 @@ export function PdfViewer({
   );
   const [cropEnd, setCropEnd] = useState<{ x: number; y: number } | null>(null);
   const [isExtracting, setIsExtracting] = useState(false);
+  const [legendCropMessage, setLegendCropMessage] = useState<string | null>(
+    null
+  );
 
   const activePage = page ?? internalPage;
 
@@ -324,6 +327,9 @@ export function PdfViewer({
 
       if (width < 10 || height < 10) {
         // Too small to be a real crop
+        setLegendCropMessage(
+          'Crop area was too small. Drag a larger box around the legend.'
+        );
         setCropStart(null);
         setCropEnd(null);
         return;
@@ -340,10 +346,32 @@ export function PdfViewer({
           ctx.drawImage(canvas, x, y, width, height, 0, 0, width, height);
           const base64Image = tempCanvas.toDataURL('image/jpeg');
           const legend = await ocrAdapter.extractLegend(base64Image);
+          if (!legend) {
+            setExtractedLegend(null);
+            setLegendCropMessage(
+              'Legend extraction returned no data. Try a tighter crop around only the legend rows, then retry.'
+            );
+            return;
+          }
+
           setExtractedLegend(legend);
+          if (legend.zones.length > 0) {
+            setLegendCropMessage(
+              `Legend captured: found ${legend.zones.length} zone${legend.zones.length === 1 ? '' : 's'}.`
+            );
+          } else {
+            setLegendCropMessage(
+              'Legend crop completed, but no zones were detected. Try zooming in and cropping tighter around the legend rows.'
+            );
+          }
         }
       } catch (err) {
         console.error('Failed to extract legend', err);
+        setLegendCropMessage(
+          err instanceof Error
+            ? `Legend extraction failed: ${err.message}`
+            : 'Legend extraction failed. Try another crop area.'
+        );
       } finally {
         setIsExtracting(false);
         setIsCroppingMode(false);
@@ -448,6 +476,10 @@ export function PdfViewer({
 
   const handleCanvasClick = useCallback(
     (event: MouseEvent<HTMLCanvasElement>) => {
+      if (isCroppingMode || isDrawingCrop) {
+        return;
+      }
+
       if (!onPdfCoordinatePick) return;
 
       const canvas = event.currentTarget;
@@ -460,7 +492,7 @@ export function PdfViewer({
       // TODO(phase-2): Extend this interface for linked GCP placement with map coordinates.
       onPdfCoordinatePick({ x, y, page: activePage });
     },
-    [activePage, onPdfCoordinatePick]
+    [activePage, isCroppingMode, isDrawingCrop, onPdfCoordinatePick]
   );
 
   return (
@@ -608,6 +640,11 @@ export function PdfViewer({
                 : 'Run Spatial Extraction'}
             </button>
           </div>
+          {legendCropMessage && (
+            <p className="mt-1 text-xs text-gray-700 dark:text-gray-200">
+              {legendCropMessage}
+            </p>
+          )}
         </div>
       )}
 
