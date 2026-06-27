@@ -89,7 +89,8 @@ export function FeatureEditor({
   }
 
   async function suggestPlanningClass(): Promise<void> {
-    const label = feature.properties.raw_zoning_label.trim();
+    const rawLabel = feature.properties?.raw_zoning_label || '';
+    const label = rawLabel.trim();
     if (!label) {
       setClassSuggestionError(
         'Enter a raw zoning label before requesting AI classification'
@@ -147,7 +148,7 @@ export function FeatureEditor({
     suggestion: { planning_class: string; confidence: number },
     selectedIndex: number
   ): void {
-    const currentSuggestions = feature.properties.ai_suggestions ?? [];
+    const currentSuggestions = feature.properties?.ai_suggestions ?? [];
     const nonPlanningClassSuggestions = currentSuggestions.filter(
       (item) => item.field !== 'planning_class'
     );
@@ -193,7 +194,7 @@ export function FeatureEditor({
     planning_class: string;
     confidence: number;
   }): void {
-    const currentSuggestions = feature.properties.ai_suggestions ?? [];
+    const currentSuggestions = feature.properties?.ai_suggestions ?? [];
     const nonPlanningClassSuggestions = currentSuggestions.filter(
       (item) => item.field !== 'planning_class'
     );
@@ -234,14 +235,14 @@ export function FeatureEditor({
   }
 
   function overridePlanningClassSuggestions(): void {
-    const currentSuggestions = feature.properties.ai_suggestions ?? [];
+    const currentSuggestions = feature.properties?.ai_suggestions ?? [];
     const nonPlanningClassSuggestions = currentSuggestions.filter(
       (item) => item.field !== 'planning_class'
     );
 
     const nextPlanningClassSuggestions: AiSuggestion[] = classSuggestions.map(
       (item) => {
-        const existing = feature.properties.ai_suggestions?.find(
+        const existing = feature.properties?.ai_suggestions?.find(
           (s) => s.field === 'planning_class' && s.value === item.planning_class
         );
         const base: AiSuggestion = existing ?? {
@@ -268,7 +269,7 @@ export function FeatureEditor({
   }
 
   function isPlanningClassOverridden(): boolean {
-    const planningSuggestions = feature.properties.ai_suggestions?.filter(
+    const planningSuggestions = feature.properties?.ai_suggestions?.filter(
       (entry) => entry.field === 'planning_class'
     );
 
@@ -282,7 +283,7 @@ export function FeatureEditor({
   function getPlanningSuggestionDecision(
     planningClass: string
   ): boolean | null {
-    const item = feature.properties.ai_suggestions?.find(
+    const item = feature.properties?.ai_suggestions?.find(
       (entry) =>
         entry.field === 'planning_class' && entry.value === planningClass
     );
@@ -308,7 +309,7 @@ export function FeatureEditor({
           </span>
           <input
             type="text"
-            value={feature.properties.raw_zoning_label}
+            value={feature.properties?.raw_zoning_label || ''}
             onChange={(event) =>
               updateProperties({ raw_zoning_label: event.target.value })
             }
@@ -325,7 +326,7 @@ export function FeatureEditor({
           </span>
           <input
             type="text"
-            value={feature.properties.planning_class}
+            value={feature.properties?.planning_class || ''}
             onChange={(event) =>
               updateProperties({ planning_class: event.target.value })
             }
@@ -446,7 +447,7 @@ export function FeatureEditor({
           </span>
           <textarea
             rows={4}
-            value={feature.properties.notes ?? ''}
+            value={feature.properties?.notes || ''}
             onChange={(event) =>
               updateProperties({ notes: event.target.value })
             }
@@ -460,15 +461,15 @@ export function FeatureEditor({
           </span>
           <div
             className={`mt-1 px-3 py-2 rounded border text-sm ${
-              feature.properties.confidence < 0.5 &&
-              !feature.properties.human_confirmed
+              feature.properties?.confidence < 0.5 &&
+              !feature.properties?.human_confirmed
                 ? 'border-amber-400 bg-amber-50 text-amber-800 dark:border-amber-600 dark:bg-amber-900/20 dark:text-amber-300'
                 : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-gray-100'
             }`}
           >
-            {feature.properties.confidence.toFixed(2)}
-            {feature.properties.confidence < 0.5 &&
-              !feature.properties.human_confirmed && (
+            {feature.properties?.confidence.toFixed(2)}
+            {feature.properties?.confidence < 0.5 &&
+              !feature.properties?.human_confirmed && (
                 <span className="ml-2 text-[10px] font-medium">
                   Low confidence — confirm before export
                 </span>
@@ -482,7 +483,7 @@ export function FeatureEditor({
         <label className="flex items-center gap-2">
           <input
             type="checkbox"
-            checked={feature.properties.human_confirmed}
+            checked={feature.properties?.human_confirmed}
             onChange={(event) =>
               updateProperties({ human_confirmed: event.target.checked })
             }
