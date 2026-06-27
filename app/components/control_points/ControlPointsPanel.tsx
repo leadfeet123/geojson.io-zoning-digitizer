@@ -85,6 +85,7 @@ export function ControlPointsPanel({
   const [suggestions, setSuggestions] = useState<GeorefSuggestion[]>([]);
   const [isSuggesting, setIsSuggesting] = useState(false);
   const [suggestionError, setSuggestionError] = useState<string | null>(null);
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const sortedSuggestions = useMemo(
     () => [...suggestions].sort((a, b) => b.confidence - a.confidence),
     [suggestions]
@@ -170,6 +171,25 @@ export function ControlPointsPanel({
     );
   }
 
+  function updateMapPoint(
+    id: string,
+    patch: Partial<ControlPointPair['map']>
+  ): void {
+    setControlPoints((current) =>
+      current.map((point) =>
+        point.id === id
+          ? {
+              ...point,
+              map: {
+                ...point.map,
+                ...patch
+              }
+            }
+          : point
+      )
+    );
+  }
+
   function removePoint(id: string): void {
     setControlPoints((current) => current.filter((point) => point.id !== id));
     setActiveControlPointId((current) => (current === id ? null : current));
@@ -213,7 +233,7 @@ export function ControlPointsPanel({
           }
         });
 
-      setSuggestions(nextSuggestions);
+      setSuggestions(nextSuggestions.slice(0, 1));
     } catch (error) {
       setSuggestionError(
         error instanceof Error
@@ -301,12 +321,11 @@ export function ControlPointsPanel({
         <button
           type="button"
           onClick={() => {
-            void requestSuggestions();
+            setShowSuggestions((current) => !current);
           }}
-          disabled={isSuggesting || !map}
           className="px-3 py-1 text-xs rounded border border-gray-300 dark:border-gray-600 disabled:opacity-50"
         >
-          {isSuggesting ? 'Suggesting...' : 'Suggest 4 Points'}
+          {showSuggestions ? 'Hide AI Suggestion' : 'Show AI Suggestion'}
         </button>
         {pendingPdfPoint && (
           <span className="text-xs text-gray-600 dark:text-gray-300">
@@ -317,111 +336,128 @@ export function ControlPointsPanel({
       </div>
 
       <div className="flex-1 overflow-auto">
-        <div className="px-3 py-2 border-b border-gray-200 dark:border-gray-700">
-          <p className="text-xs font-medium uppercase tracking-wide text-gray-600 dark:text-gray-300">
-            AI suggestions (experimental)
-          </p>
-          <div className="mt-1">
-            <span
-              className={`inline-flex items-center rounded px-2 py-0.5 text-[10px] font-medium ${sourceBadgeClass(defaultGeorefSuggestionSource)}`}
-            >
-              Source: {defaultGeorefSuggestionSource}
-            </span>
-          </div>
-          <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">
-            Review each suggestion, edit lon/lat if needed, then add to control
-            points.
-          </p>
-          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            {fallbackHintText(defaultGeorefSuggestionSource)}
-          </p>
-          {suggestionError && (
-            <div className="mt-1 flex items-center gap-2">
-              <p className="text-xs text-red-600">{suggestionError}</p>
+        {showSuggestions && (
+          <div className="px-3 py-2 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center gap-2">
+              <p className="text-xs font-medium uppercase tracking-wide text-gray-600 dark:text-gray-300">
+                AI suggestions (experimental)
+              </p>
               <button
                 type="button"
                 onClick={() => {
                   void requestSuggestions();
                 }}
                 disabled={isSuggesting || !map}
-                className="px-2 py-1 text-[10px] rounded border border-red-300 text-red-700 dark:border-red-700 dark:text-red-300 disabled:opacity-50"
+                className="px-2 py-1 text-[10px] rounded border border-gray-300 dark:border-gray-600 disabled:opacity-50"
               >
-                Retry
+                {isSuggesting ? 'Suggesting...' : 'Suggest 1 Point'}
               </button>
             </div>
-          )}
-          {sortedSuggestions.length > 0 && (
-            <div className="mt-2 space-y-2">
-              {lowConfidenceCount > 0 && (
-                <p className="text-xs text-amber-700 dark:text-amber-300">
-                  {lowConfidenceCount} low-confidence suggestion
-                  {lowConfidenceCount === 1 ? '' : 's'} below 50% are flagged.
-                </p>
-              )}
-              {sortedSuggestions.map((suggestion) => (
-                <div
-                  key={suggestion.id}
-                  className={
-                    suggestion.confidence < 0.5
-                      ? 'border border-amber-300 dark:border-amber-700 rounded p-2 bg-amber-50/50 dark:bg-amber-900/10'
-                      : 'border border-gray-200 dark:border-gray-700 rounded p-2'
-                  }
-                >
-                  <p className="text-xs text-gray-700 dark:text-gray-200">
-                    PDF ({formatPixel(suggestion.pdf.x)},{' '}
-                    {formatPixel(suggestion.pdf.y)}) p{suggestion.pdf.page}
-                  </p>
-                  {suggestion.confidence < 0.5 && (
-                    <p className="mt-1 text-[10px] font-medium text-amber-700 dark:text-amber-300">
-                      Low confidence: review carefully before adding.
-                    </p>
-                  )}
-                  <p className="text-xs text-gray-600 dark:text-gray-300">
-                    Confidence {(suggestion.confidence * 100).toFixed(0)}%:{' '}
-                    {suggestion.rationale}
-                  </p>
-                  <div className="mt-2 flex items-center gap-2">
-                    <label className="text-xs text-gray-700 dark:text-gray-200">
-                      Lon
-                      <input
-                        type="number"
-                        value={suggestion.map.lon}
-                        onChange={(event) => {
-                          const nextValue = Number(event.target.value);
-                          if (!Number.isNaN(nextValue)) {
-                            patchSuggestion(suggestion.id, { lon: nextValue });
-                          }
-                        }}
-                        className="ml-1 w-28 px-2 py-1 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800"
-                      />
-                    </label>
-                    <label className="text-xs text-gray-700 dark:text-gray-200">
-                      Lat
-                      <input
-                        type="number"
-                        value={suggestion.map.lat}
-                        onChange={(event) => {
-                          const nextValue = Number(event.target.value);
-                          if (!Number.isNaN(nextValue)) {
-                            patchSuggestion(suggestion.id, { lat: nextValue });
-                          }
-                        }}
-                        className="ml-1 w-28 px-2 py-1 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800"
-                      />
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => acceptSuggestion(suggestion)}
-                      className="px-2 py-1 text-xs rounded border border-gray-300 dark:border-gray-600"
-                    >
-                      Add as Control Point
-                    </button>
-                  </div>
-                </div>
-              ))}
+            <div className="mt-1">
+              <span
+                className={`inline-flex items-center rounded px-2 py-0.5 text-[10px] font-medium ${sourceBadgeClass(defaultGeorefSuggestionSource)}`}
+              >
+                Source: {defaultGeorefSuggestionSource}
+              </span>
             </div>
-          )}
-        </div>
+            <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">
+              Request one suggestion at a time, then review and add it.
+            </p>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {fallbackHintText(defaultGeorefSuggestionSource)}
+            </p>
+            {suggestionError && (
+              <div className="mt-1 flex items-center gap-2">
+                <p className="text-xs text-red-600">{suggestionError}</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    void requestSuggestions();
+                  }}
+                  disabled={isSuggesting || !map}
+                  className="px-2 py-1 text-[10px] rounded border border-red-300 text-red-700 dark:border-red-700 dark:text-red-300 disabled:opacity-50"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+            {sortedSuggestions.length > 0 && (
+              <div className="mt-2 space-y-2">
+                {lowConfidenceCount > 0 && (
+                  <p className="text-xs text-amber-700 dark:text-amber-300">
+                    {lowConfidenceCount} low-confidence suggestion
+                    {lowConfidenceCount === 1 ? '' : 's'} below 50% are flagged.
+                  </p>
+                )}
+                {sortedSuggestions.map((suggestion) => (
+                  <div
+                    key={suggestion.id}
+                    className={
+                      suggestion.confidence < 0.5
+                        ? 'border border-amber-300 dark:border-amber-700 rounded p-2 bg-amber-50/50 dark:bg-amber-900/10'
+                        : 'border border-gray-200 dark:border-gray-700 rounded p-2'
+                    }
+                  >
+                    <p className="text-xs text-gray-700 dark:text-gray-200">
+                      PDF ({formatPixel(suggestion.pdf.x)},{' '}
+                      {formatPixel(suggestion.pdf.y)}) p{suggestion.pdf.page}
+                    </p>
+                    {suggestion.confidence < 0.5 && (
+                      <p className="mt-1 text-[10px] font-medium text-amber-700 dark:text-amber-300">
+                        Low confidence: review carefully before adding.
+                      </p>
+                    )}
+                    <p className="text-xs text-gray-600 dark:text-gray-300">
+                      Confidence {(suggestion.confidence * 100).toFixed(0)}%:{' '}
+                      {suggestion.rationale}
+                    </p>
+                    <div className="mt-2 flex items-center gap-2">
+                      <label className="text-xs text-gray-700 dark:text-gray-200">
+                        Lon
+                        <input
+                          type="number"
+                          value={suggestion.map.lon}
+                          onChange={(event) => {
+                            const nextValue = Number(event.target.value);
+                            if (!Number.isNaN(nextValue)) {
+                              patchSuggestion(suggestion.id, {
+                                lon: nextValue
+                              });
+                            }
+                          }}
+                          className="ml-1 w-28 px-2 py-1 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800"
+                        />
+                      </label>
+                      <label className="text-xs text-gray-700 dark:text-gray-200">
+                        Lat
+                        <input
+                          type="number"
+                          value={suggestion.map.lat}
+                          onChange={(event) => {
+                            const nextValue = Number(event.target.value);
+                            if (!Number.isNaN(nextValue)) {
+                              patchSuggestion(suggestion.id, {
+                                lat: nextValue
+                              });
+                            }
+                          }}
+                          className="ml-1 w-28 px-2 py-1 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800"
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => acceptSuggestion(suggestion)}
+                        className="px-2 py-1 text-xs rounded border border-gray-300 dark:border-gray-600"
+                      >
+                        Add as Control Point
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="px-3 py-2 border-b border-gray-200 dark:border-gray-700">
           <p className="text-xs font-medium uppercase tracking-wide text-gray-600 dark:text-gray-300">
@@ -543,7 +579,40 @@ export function ControlPointsPanel({
                     </div>
                   </td>
                   <td className="px-3 py-2 text-gray-700 dark:text-gray-200">
-                    {formatCoord(point.map.lon)}, {formatCoord(point.map.lat)}
+                    <div className="flex items-center gap-2">
+                      <label className="inline-flex items-center gap-1">
+                        <span className="sr-only">Map longitude</span>
+                        <input
+                          type="number"
+                          step="0.000001"
+                          value={point.map.lon}
+                          onChange={(event) => {
+                            const nextValue = Number(event.target.value);
+                            if (!Number.isNaN(nextValue)) {
+                              updateMapPoint(point.id, { lon: nextValue });
+                            }
+                          }}
+                          className="w-24 px-1.5 py-1 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800"
+                          aria-label="Map longitude"
+                        />
+                      </label>
+                      <label className="inline-flex items-center gap-1">
+                        <span className="sr-only">Map latitude</span>
+                        <input
+                          type="number"
+                          step="0.000001"
+                          value={point.map.lat}
+                          onChange={(event) => {
+                            const nextValue = Number(event.target.value);
+                            if (!Number.isNaN(nextValue)) {
+                              updateMapPoint(point.id, { lat: nextValue });
+                            }
+                          }}
+                          className="w-24 px-1.5 py-1 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800"
+                          aria-label="Map latitude"
+                        />
+                      </label>
+                    </div>
                   </td>
                   <td className="px-3 py-2">
                     <label className="inline-flex items-center gap-2 text-gray-700 dark:text-gray-200">
