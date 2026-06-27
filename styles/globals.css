@@ -362,6 +362,38 @@ body.dark .mapboxgl-ctrl-attrib-button {
   border-radius: 9999px;
 }
 
+.geojsonio-control-point-marker {
+  width: 22px;
+  height: 22px;
+  border-radius: 9999px;
+  border: 2px solid #ffffff;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+  user-select: none;
+  padding: 0;
+}
+
+.geojsonio-control-point-marker-confirmed {
+  background: #10b981;
+}
+
+.geojsonio-control-point-marker-unconfirmed {
+  background: #0ea5e9;
+}
+
+.geojsonio-control-point-marker-active {
+  background: #f97316;
+  width: 24px;
+  height: 24px;
+}
+
 .geojsonio-control-point-focus-marker::before {
   content: '';
   position: absolute;

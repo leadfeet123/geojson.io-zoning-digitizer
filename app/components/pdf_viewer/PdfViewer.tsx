@@ -9,7 +9,10 @@ import { extractedLegendAtom } from 'state/digitizer';
 import { ocrAdapter } from 'app/lib/ocr_adapter';
 import { spatialExtractionEngine } from '../../lib/spatial_extraction_engine';
 import { digitizerFeaturesAtom } from 'state/digitizer_features';
-import { solveAffineTransform, transformPoint } from '../../lib/transform_engine';
+import {
+  solveAffineTransform,
+  transformPoint
+} from '../../lib/transform_engine';
 import { newFeatureId as generateId } from '../../lib/id';
 import type { DigitizerFeature } from 'types/digitizer';
 
@@ -19,6 +22,11 @@ interface PdfViewerProps {
   file: File | null;
   page?: number;
   isPickingPdfPoint?: boolean;
+  pendingPdfPoint?: {
+    x: number;
+    y: number;
+    page: number;
+  } | null;
   controlPoints?: Array<{
     id: string;
     pdf: {
@@ -47,6 +55,7 @@ export function PdfViewer({
   file,
   page,
   isPickingPdfPoint = false,
+  pendingPdfPoint = null,
   controlPoints = [],
   activeControlPointId = null,
   onPageChange,
@@ -71,7 +80,9 @@ export function PdfViewer({
   const [renderedSize, setRenderedSize] = useState({ width: 0, height: 0 });
 
   const [extractedLegend, setExtractedLegend] = useAtom(extractedLegendAtom);
-  const [digitizerFeatures, setDigitizerFeatures] = useAtom(digitizerFeaturesAtom);
+  const [digitizerFeatures, setDigitizerFeatures] = useAtom(
+    digitizerFeaturesAtom
+  );
   const [isExtractingShapes, setIsExtractingShapes] = useState(false);
   const [isCroppingMode, setIsCroppingMode] = useState(false);
   const [isDrawingCrop, setIsDrawingCrop] = useState(false);
@@ -253,6 +264,14 @@ export function PdfViewer({
     [activePage, controlPoints]
   );
 
+  const pendingPointOnPage = useMemo(() => {
+    if (!pendingPdfPoint || pendingPdfPoint.page !== activePage) {
+      return null;
+    }
+
+    return pendingPdfPoint;
+  }, [activePage, pendingPdfPoint]);
+
   const handleCanvasMouseDown = useCallback(
     (event: React.MouseEvent<HTMLCanvasElement>) => {
       if (!isCroppingMode) return;
@@ -325,25 +344,34 @@ export function PdfViewer({
     [isDrawingCrop, cropStart, cropEnd, setExtractedLegend]
   );
 
-
   const handleExtractShapes = useCallback(async () => {
-    if (!canvasRef.current || !extractedLegend || extractedLegend.zones.length === 0) return;
+    if (
+      !canvasRef.current ||
+      !extractedLegend ||
+      extractedLegend.zones.length === 0
+    )
+      return;
 
     // Check if we have enough confirmed GCPs for transform
-    const confirmedGCPs = controlPoints.filter(p => p.confirmed);
+    const confirmedGCPs = controlPoints.filter((p) => p.confirmed);
     if (confirmedGCPs.length < 3) {
-      alert('Cannot extract shapes: Please confirm at least 3 Ground Control Points (GCPs) first to allow coordinate transformation.');
+      alert(
+        'Cannot extract shapes: Please confirm at least 3 Ground Control Points (GCPs) first to allow coordinate transformation.'
+      );
       return;
     }
 
     setIsExtractingShapes(true);
     try {
       const transform = solveAffineTransform(confirmedGCPs);
-      const extractedPolygons = await spatialExtractionEngine.extractShapes(canvasRef.current, extractedLegend.zones);
+      const extractedPolygons = await spatialExtractionEngine.extractShapes(
+        canvasRef.current,
+        extractedLegend.zones
+      );
 
-      const newFeatures: DigitizerFeature[] = extractedPolygons.map(poly => {
+      const newFeatures: DigitizerFeature[] = extractedPolygons.map((poly) => {
         // Transform coordinates
-        const mapCoords = poly.pdfCoordinates.map(pt => {
+        const mapCoords = poly.pdfCoordinates.map((pt) => {
           const mapPt = transformPoint(pt, transform);
           return [mapPt.lon, mapPt.lat];
         });
@@ -369,14 +397,13 @@ export function PdfViewer({
             confidence: 0.5,
             source_type: 'digitized',
             source_name: file ? file.name : 'extracted_shapes',
-            human_confirmed: false,
+            human_confirmed: false
           }
         };
       });
 
-      setDigitizerFeatures(prev => [...prev, ...newFeatures]);
+      setDigitizerFeatures((prev) => [...prev, ...newFeatures]);
       alert(`Successfully extracted ${newFeatures.length} shapes.`);
-
     } catch (err) {
       console.error('Failed to extract shapes:', err);
       alert('Failed to extract shapes. See console for details.');
@@ -456,9 +483,17 @@ export function PdfViewer({
           <button
             type="button"
             onClick={handleExtractShapes}
-            disabled={!extractedLegend || extractedLegend.zones.length === 0 || isExtractingShapes}
+            disabled={
+              !extractedLegend ||
+              extractedLegend.zones.length === 0 ||
+              isExtractingShapes
+            }
             className="px-2 py-1 text-xs font-medium rounded bg-blue-100 border border-blue-300 dark:bg-blue-900 dark:border-blue-700 hover:bg-blue-200 dark:hover:bg-blue-800 text-blue-800 dark:text-blue-200 disabled:opacity-50"
-            title={!extractedLegend || extractedLegend.zones.length === 0 ? 'Extract legend first' : 'Extract zoning shapes based on legend'}
+            title={
+              !extractedLegend || extractedLegend.zones.length === 0
+                ? 'Extract legend first'
+                : 'Extract zoning shapes based on legend'
+            }
           >
             {isExtractingShapes ? 'Extracting Shapes...' : 'Extract Shapes'}
           </button>
@@ -567,38 +602,50 @@ export function PdfViewer({
                 }}
               />
             )}
-            {pointsOnPage.length > 0 && renderedSize.width > 0 && (
-              <div className="absolute inset-0 pointer-events-none">
-                {pointsOnPage.map((point, index) => {
-                  const left = point.pdf.x * renderedScale;
-                  const top = point.pdf.y * renderedScale;
-                  const isActive = point.id === activeControlPointId;
+            {(pointsOnPage.length > 0 || pendingPointOnPage) &&
+              renderedSize.width > 0 && (
+                <div className="absolute inset-0 pointer-events-none">
+                  {pointsOnPage.map((point, index) => {
+                    const left = point.pdf.x * renderedScale;
+                    const top = point.pdf.y * renderedScale;
+                    const isActive = point.id === activeControlPointId;
 
-                  return (
-                    <button
-                      key={point.id}
-                      type="button"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onControlPointClick?.(point.id);
+                    return (
+                      <button
+                        key={point.id}
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onControlPointClick?.(point.id);
+                        }}
+                        className={
+                          isActive
+                            ? 'absolute -translate-x-1/2 -translate-y-1/2 w-5 h-5 rounded-full border-2 border-white bg-amber-500 text-[10px] font-semibold text-white pointer-events-auto shadow'
+                            : point.confirmed
+                              ? 'absolute -translate-x-1/2 -translate-y-1/2 w-4 h-4 rounded-full border border-white bg-emerald-500 text-[10px] font-semibold text-white pointer-events-auto shadow'
+                              : 'absolute -translate-x-1/2 -translate-y-1/2 w-4 h-4 rounded-full border border-white bg-sky-500 text-[10px] font-semibold text-white pointer-events-auto shadow'
+                        }
+                        style={{ left, top }}
+                        aria-label={`Control point ${index + 1} on page ${activePage}`}
+                        title={`Control point ${index + 1}`}
+                      >
+                        {index + 1}
+                      </button>
+                    );
+                  })}
+                  {pendingPointOnPage && (
+                    <div
+                      className="absolute -translate-x-1/2 -translate-y-1/2 w-4 h-4 rounded-full border border-white bg-amber-500/90 shadow"
+                      style={{
+                        left: pendingPointOnPage.x * renderedScale,
+                        top: pendingPointOnPage.y * renderedScale
                       }}
-                      className={
-                        isActive
-                          ? 'absolute -translate-x-1/2 -translate-y-1/2 w-5 h-5 rounded-full border-2 border-white bg-amber-500 text-[10px] font-semibold text-white pointer-events-auto shadow'
-                          : point.confirmed
-                            ? 'absolute -translate-x-1/2 -translate-y-1/2 w-4 h-4 rounded-full border border-white bg-emerald-500 text-[10px] font-semibold text-white pointer-events-auto shadow'
-                            : 'absolute -translate-x-1/2 -translate-y-1/2 w-4 h-4 rounded-full border border-white bg-sky-500 text-[10px] font-semibold text-white pointer-events-auto shadow'
-                      }
-                      style={{ left, top }}
-                      aria-label={`Control point ${index + 1} on page ${activePage}`}
-                      title={`Control point ${index + 1}`}
-                    >
-                      {index + 1}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
+                      aria-label="Pending control point on PDF"
+                      title="Pending control point"
+                    />
+                  )}
+                </div>
+              )}
           </div>
         </div>
       )}

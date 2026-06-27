@@ -78,14 +78,39 @@ const persistentTransformAtom = atom<Transform>({
 });
 
 function createControlPointFocusMarkerElement(): HTMLDivElement {
-  const marker = document.createElement('div');
-  marker.className = 'geojsonio-control-point-focus-marker';
-
-  const core = document.createElement('div');
-  core.className = 'geojsonio-control-point-focus-marker-core';
-  marker.appendChild(core);
+  const marker = document.createElement('button');
+  marker.type = 'button';
+  marker.className = 'geojsonio-control-point-marker';
 
   return marker;
+}
+
+function updateControlPointMarkerElement(
+  marker: HTMLButtonElement,
+  index: number,
+  isConfirmed: boolean,
+  isActive: boolean
+): void {
+  marker.className = [
+    'geojsonio-control-point-marker',
+    isConfirmed
+      ? 'geojsonio-control-point-marker-confirmed'
+      : 'geojsonio-control-point-marker-unconfirmed',
+    isActive ? 'geojsonio-control-point-marker-active' : ''
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  marker.textContent = String(index + 1);
+  marker.setAttribute('aria-label', `Control point ${index + 1}`);
+  marker.title = `Control point ${index + 1}`;
+}
+
+function clearControlPointMarkers(markers: Map<string, mapboxgl.Marker>): void {
+  markers.forEach((marker) => {
+    marker.remove();
+  });
+  markers.clear();
 }
 
 export function GeojsonIO() {
@@ -101,10 +126,12 @@ export function GeojsonIO() {
   const [activeControlPointId, setActiveControlPointId] = useAtom(
     activeControlPointIdAtom
   );
-  const [, setPendingPdfPoint] = useAtom(pendingPdfPointAtom);
+  const [pendingPdfPoint, setPendingPdfPoint] = useAtom(pendingPdfPointAtom);
   const digitizerMode = useAtomValue(digitizerModeAtom);
   const isBigScreen = useBigScreen();
-  const focusedControlPointMarkerRef = useRef<mapboxgl.Marker | null>(null);
+  const controlPointMarkersRef = useRef<Map<string, mapboxgl.Marker>>(
+    new Map()
+  );
 
   const layout: ResolvedLayout = isBigScreen ? 'HORIZONTAL' : 'VERTICAL';
 
@@ -140,17 +167,69 @@ export function GeojsonIO() {
         zoom: nextZoom,
         essential: true
       });
+    },
+    [controlPoints, map, setActiveControlPointId]
+  );
 
-      focusedControlPointMarkerRef.current?.remove();
-      focusedControlPointMarkerRef.current = new mapboxgl.Marker({
-        element: createControlPointFocusMarkerElement(),
+  useEffect(() => {
+    const mapboxMap = map?.map;
+    const markerMap = controlPointMarkersRef.current;
+
+    if (!mapboxMap) {
+      clearControlPointMarkers(markerMap);
+      return;
+    }
+
+    const markerIds = new Set(controlPoints.map((point) => point.id));
+
+    markerMap.forEach((marker, markerId) => {
+      if (markerIds.has(markerId)) {
+        return;
+      }
+
+      marker.remove();
+      markerMap.delete(markerId);
+    });
+
+    controlPoints.forEach((point, index) => {
+      const existing = markerMap.get(point.id);
+      const isActive = point.id === activeControlPointId;
+
+      if (existing) {
+        existing.setLngLat([point.map.lon, point.map.lat]);
+        const existingElement = existing.getElement();
+        if (existingElement instanceof HTMLButtonElement) {
+          updateControlPointMarkerElement(
+            existingElement,
+            index,
+            point.confirmed,
+            isActive
+          );
+        }
+        return;
+      }
+
+      const markerElement = createControlPointFocusMarkerElement();
+      updateControlPointMarkerElement(
+        markerElement,
+        index,
+        point.confirmed,
+        isActive
+      );
+      markerElement.addEventListener('click', () => {
+        focusControlPoint(point.id);
+      });
+
+      const marker = new mapboxgl.Marker({
+        element: markerElement,
         anchor: 'center'
       })
         .setLngLat([point.map.lon, point.map.lat])
         .addTo(mapboxMap);
-    },
-    [controlPoints, map, setActiveControlPointId]
-  );
+
+      markerMap.set(point.id, marker);
+    });
+  }, [activeControlPointId, controlPoints, focusControlPoint, map]);
 
   useEffect(() => {
     if (
@@ -158,15 +237,14 @@ export function GeojsonIO() {
       !controlPoints.some((point) => point.id === activeControlPointId)
     ) {
       setActiveControlPointId(null);
-      focusedControlPointMarkerRef.current?.remove();
-      focusedControlPointMarkerRef.current = null;
     }
   }, [activeControlPointId, controlPoints, setActiveControlPointId]);
 
   useEffect(() => {
+    const markerMap = controlPointMarkersRef.current;
+
     return () => {
-      focusedControlPointMarkerRef.current?.remove();
-      focusedControlPointMarkerRef.current = null;
+      clearControlPointMarkers(markerMap);
     };
   }, []);
 
@@ -211,6 +289,7 @@ export function GeojsonIO() {
                   isPickingPdfPoint={
                     controlPointPlacementMode === 'awaiting_pdf'
                   }
+                  pendingPdfPoint={pendingPdfPoint}
                   controlPoints={controlPoints}
                   activeControlPointId={activeControlPointId}
                   onPageChange={setActivePdfPage}
