@@ -130,7 +130,7 @@ export function GeojsonIO() {
   const digitizerMode = useAtomValue(digitizerModeAtom);
   const isBigScreen = useBigScreen();
   const controlPointMarkersRef = useRef<Map<string, mapboxgl.Marker>>(
-    new Map()
+    new globalThis.Map()
   );
 
   const layout: ResolvedLayout = isBigScreen ? 'HORIZONTAL' : 'VERTICAL';

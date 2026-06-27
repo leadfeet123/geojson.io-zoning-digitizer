@@ -81,7 +81,7 @@ export function ControlPointsPanel({
     controlPointPlacementModeAtom
   );
   const [pendingPdfPoint, setPendingPdfPoint] = useAtom(pendingPdfPointAtom);
-  const [activePdfPage] = useAtom(activePdfPageAtom);
+  const [activePdfPage, setActivePdfPage] = useAtom(activePdfPageAtom);
   const [suggestions, setSuggestions] = useState<GeorefSuggestion[]>([]);
   const [isSuggesting, setIsSuggesting] = useState(false);
   const [suggestionError, setSuggestionError] = useState<string | null>(null);
@@ -145,6 +145,25 @@ export function ControlPointsPanel({
           ? {
               ...point,
               ...updates
+            }
+          : point
+      )
+    );
+  }
+
+  function updatePdfPoint(
+    id: string,
+    patch: Partial<ControlPointPair['pdf']>
+  ): void {
+    setControlPoints((current) =>
+      current.map((point) =>
+        point.id === id
+          ? {
+              ...point,
+              pdf: {
+                ...point.pdf,
+                ...patch
+              }
             }
           : point
       )
@@ -469,8 +488,59 @@ export function ControlPointsPanel({
                   }
                 >
                   <td className="px-3 py-2 text-gray-700 dark:text-gray-200">
-                    {formatPixel(point.pdf.x)}, {formatPixel(point.pdf.y)} (p
-                    {point.pdf.page})
+                    <div className="flex items-center gap-2">
+                      <label className="inline-flex items-center gap-1">
+                        <span className="sr-only">PDF X</span>
+                        <input
+                          type="number"
+                          step="0.1"
+                          value={point.pdf.x}
+                          onChange={(event) => {
+                            const nextValue = Number(event.target.value);
+                            if (!Number.isNaN(nextValue)) {
+                              updatePdfPoint(point.id, { x: nextValue });
+                            }
+                          }}
+                          className="w-20 px-1.5 py-1 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800"
+                          aria-label="PDF X coordinate"
+                        />
+                      </label>
+                      <label className="inline-flex items-center gap-1">
+                        <span className="sr-only">PDF Y</span>
+                        <input
+                          type="number"
+                          step="0.1"
+                          value={point.pdf.y}
+                          onChange={(event) => {
+                            const nextValue = Number(event.target.value);
+                            if (!Number.isNaN(nextValue)) {
+                              updatePdfPoint(point.id, { y: nextValue });
+                            }
+                          }}
+                          className="w-20 px-1.5 py-1 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800"
+                          aria-label="PDF Y coordinate"
+                        />
+                      </label>
+                      <label className="inline-flex items-center gap-1">
+                        <span className="sr-only">PDF page</span>
+                        <input
+                          type="number"
+                          step="1"
+                          min="1"
+                          value={point.pdf.page}
+                          onChange={(event) => {
+                            const nextValue = Number(event.target.value);
+                            if (!Number.isNaN(nextValue)) {
+                              updatePdfPoint(point.id, {
+                                page: Math.max(1, Math.trunc(nextValue))
+                              });
+                            }
+                          }}
+                          className="w-14 px-1.5 py-1 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800"
+                          aria-label="PDF page"
+                        />
+                      </label>
+                    </div>
                   </td>
                   <td className="px-3 py-2 text-gray-700 dark:text-gray-200">
                     {formatCoord(point.map.lon)}, {formatCoord(point.map.lat)}
@@ -493,6 +563,7 @@ export function ControlPointsPanel({
                     <button
                       type="button"
                       onClick={() => {
+                        setActivePdfPage(point.pdf.page);
                         setActiveControlPointId(point.id);
                         onControlPointClick?.(point.id);
                       }}
