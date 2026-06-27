@@ -108,6 +108,15 @@ export function PdfViewer({
 
   const canGoPrev = activePage > 1;
   const canGoNext = activePage < pageCount;
+  const confirmedControlPointCount = useMemo(
+    () => controlPoints.filter((point) => point.confirmed).length,
+    [controlPoints]
+  );
+  const hasLegend = Boolean(
+    extractedLegend && extractedLegend.zones.length > 0
+  );
+  const canRunSpatialExtraction =
+    confirmedControlPointCount >= 3 && hasLegend && !isExtractingShapes;
 
   useEffect(() => {
     onPageChangeRef.current = onPageChange;
@@ -533,6 +542,58 @@ export function PdfViewer({
           </button>
         </div>
       </header>
+
+      {file && (
+        <div
+          className={
+            canRunSpatialExtraction
+              ? 'px-3 py-2 border-b border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/40'
+              : 'px-3 py-2 border-b border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40'
+          }
+        >
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold tracking-wide uppercase text-gray-700 dark:text-gray-200">
+                Spatial Extraction (Step 4)
+              </p>
+              <p className="text-xs text-gray-700 dark:text-gray-200">
+                Confirmed GCPs: {confirmedControlPointCount}/3 | Legend zones:{' '}
+                {hasLegend ? (extractedLegend?.zones.length ?? 0) : 0}
+              </p>
+              {!hasLegend && (
+                <p className="text-xs text-amber-700 dark:text-amber-300">
+                  First use Crop Legend, then run Extract Shapes.
+                </p>
+              )}
+              {hasLegend && confirmedControlPointCount < 3 && (
+                <p className="text-xs text-amber-700 dark:text-amber-300">
+                  Confirm at least 3 control points to enable extraction.
+                </p>
+              )}
+              {canRunSpatialExtraction && (
+                <p className="text-xs text-emerald-700 dark:text-emerald-300">
+                  Ready: click Extract Shapes to generate map polygons.
+                </p>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={handleExtractShapes}
+              disabled={!canRunSpatialExtraction}
+              className="px-3 py-1.5 text-xs font-semibold rounded bg-blue-100 border border-blue-300 dark:bg-blue-900 dark:border-blue-700 hover:bg-blue-200 dark:hover:bg-blue-800 text-blue-800 dark:text-blue-200 disabled:opacity-50"
+              title={
+                canRunSpatialExtraction
+                  ? 'Extract zoning shapes based on legend and confirmed control points'
+                  : 'Need a legend and at least 3 confirmed control points'
+              }
+            >
+              {isExtractingShapes
+                ? 'Extracting Shapes...'
+                : 'Run Spatial Extraction'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {!file ? (
         <div

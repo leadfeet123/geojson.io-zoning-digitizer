@@ -62,7 +62,7 @@ import {
   controlPointsAtom,
   pendingPdfPointAtom
 } from 'state/control_points';
-import { splitsAtom } from 'state/jotai';
+import { splitsAtom, styleOptionsAtom } from 'state/jotai';
 import mapboxgl from 'mapbox-gl';
 
 export type ResolvedLayout = 'HORIZONTAL' | 'VERTICAL';
@@ -128,9 +128,13 @@ export function GeojsonIO() {
   );
   const [pendingPdfPoint, setPendingPdfPoint] = useAtom(pendingPdfPointAtom);
   const digitizerMode = useAtomValue(digitizerModeAtom);
+  const [styleOptions, setStyleOptions] = useAtom(styleOptionsAtom);
   const isBigScreen = useBigScreen();
   const controlPointMarkersRef = useRef<Map<string, mapboxgl.Marker>>(
     new globalThis.Map()
+  );
+  const projectionBeforeDigitizerRef = useRef<'globe' | 'mercator' | null>(
+    null
   );
 
   const layout: ResolvedLayout = isBigScreen ? 'HORIZONTAL' : 'VERTICAL';
@@ -170,6 +174,36 @@ export function GeojsonIO() {
     },
     [controlPoints, map, setActiveControlPointId]
   );
+
+  useEffect(() => {
+    if (digitizerMode) {
+      if (styleOptions.mapProjection !== 'mercator') {
+        if (projectionBeforeDigitizerRef.current === null) {
+          projectionBeforeDigitizerRef.current = styleOptions.mapProjection;
+        }
+
+        setStyleOptions((current) => ({
+          ...current,
+          mapProjection: 'mercator'
+        }));
+      }
+
+      return;
+    }
+
+    const previousProjection = projectionBeforeDigitizerRef.current;
+    if (
+      previousProjection &&
+      styleOptions.mapProjection === 'mercator' &&
+      previousProjection !== 'mercator'
+    ) {
+      setStyleOptions((current) => ({
+        ...current,
+        mapProjection: previousProjection
+      }));
+    }
+    projectionBeforeDigitizerRef.current = null;
+  }, [digitizerMode, setStyleOptions, styleOptions.mapProjection]);
 
   useEffect(() => {
     const mapboxMap = map?.map;
