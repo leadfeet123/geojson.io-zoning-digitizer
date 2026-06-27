@@ -1,5 +1,9 @@
-import * as cv from '@techstark/opencv-js';
+import cvModule from '@techstark/opencv-js';
 import type { LegendItem } from './ocr_adapter';
+
+const OPEN_CV_INIT_TIMEOUT_MS = 15_000;
+let openCvReadyPromise: Promise<void> | null = null;
+let cv: any = null;
 
 export interface ExtractedPolygon {
   legendItem: LegendItem;
@@ -7,7 +11,93 @@ export interface ExtractedPolygon {
 }
 
 export interface SpatialExtractionEngine {
-  extractShapes(canvas: HTMLCanvasElement, legend: LegendItem[]): Promise<ExtractedPolygon[]>;
+  extractShapes(
+    canvas: HTMLCanvasElement,
+    legend: LegendItem[]
+  ): Promise<ExtractedPolygon[]>;
+}
+
+function isOpenCvReady(): boolean {
+  const moduleAny = cvModule as any;
+
+  if (!cv) {
+    if (moduleAny && typeof moduleAny.Mat === 'function') {
+      cv = moduleAny;
+    } else if (
+      moduleAny?.default &&
+      typeof moduleAny.default.Mat === 'function'
+    ) {
+      cv = moduleAny.default;
+    }
+  }
+
+  const cvAny = cv as unknown as {
+    Mat?: unknown;
+    imread?: unknown;
+  };
+
+  return typeof cvAny.Mat === 'function' && typeof cvAny.imread === 'function';
+}
+
+async function ensureOpenCvReady(): Promise<void> {
+  if (isOpenCvReady()) {
+    return;
+  }
+
+  if (!openCvReadyPromise) {
+    openCvReadyPromise = (async () => {
+      const moduleAny = cvModule as any;
+      const moduleValue = moduleAny?.default ?? moduleAny;
+
+      if (moduleValue && typeof moduleValue.then === 'function') {
+        const resolved = await moduleValue;
+        cv = resolved?.default ?? resolved;
+
+        if (!isOpenCvReady()) {
+          throw new Error(
+            'OpenCV.js initialized but required APIs are missing.'
+          );
+        }
+        return;
+      }
+
+      await new Promise<void>((resolve, reject) => {
+        const cvAny = moduleValue as {
+          onRuntimeInitialized?: () => void;
+        };
+        const previousInitHandler = cvAny.onRuntimeInitialized;
+
+        const timeoutHandle = globalThis.setTimeout(() => {
+          reject(new Error('OpenCV.js initialization timed out.'));
+        }, OPEN_CV_INIT_TIMEOUT_MS);
+
+        cvAny.onRuntimeInitialized = () => {
+          try {
+            previousInitHandler?.();
+          } catch {
+            // Ignore errors from downstream handlers.
+          }
+
+          globalThis.clearTimeout(timeoutHandle);
+          resolve();
+        };
+
+        // If it initialized before the handler was set, resolve immediately.
+        if (isOpenCvReady()) {
+          globalThis.clearTimeout(timeoutHandle);
+          resolve();
+        }
+      });
+
+      if (!isOpenCvReady()) {
+        throw new Error('OpenCV.js initialized but required APIs are missing.');
+      }
+    }).finally(() => {
+      openCvReadyPromise = null;
+    });
+  }
+
+  await openCvReadyPromise;
 }
 
 export function bridgeInternalGaps(
@@ -44,10 +134,7 @@ export function bridgeInternalGaps(
   const boundaryMask = new cv.Mat();
   cv.inRange(hsv, lowerBoundary, upperBoundary, boundaryMask);
 
-  const kernel = cv.getStructuringElement(
-    cv.MORPH_RECT,
-    new cv.Size(5, 5)
-  );
+  const kernel = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(5, 5));
 
   const closedZoning = new cv.Mat();
   cv.morphologyEx(zoningMask, closedZoning, cv.MORPH_CLOSE, kernel);
@@ -145,84 +232,79 @@ export class OpenCvExtractionEngine implements SpatialExtractionEngine {
     canvas: HTMLCanvasElement,
     legend: LegendItem[]
   ): Promise<ExtractedPolygon[]> {
-    return new Promise((resolve, reject) => {
-      try {
-        if (!cv || !cv.Mat) {
-          reject(new Error('OpenCV.js not initialized.'));
-          return;
-        }
+    await ensureOpenCvReady();
 
-        const src = cv.imread(canvas);
-        const hsv = new cv.Mat();
-        cv.cvtColor(src, hsv, cv.COLOR_RGBA2RGB);
-        cv.cvtColor(hsv, hsv, cv.COLOR_RGB2HSV);
+    if (!cv || !cv.Mat) {
+      throw new Error('OpenCV.js not initialized.');
+    }
 
-        const results: ExtractedPolygon[] = [];
+    const src = cv.imread(canvas);
+    const hsv = new cv.Mat();
+    cv.cvtColor(src, hsv, cv.COLOR_RGBA2RGB);
+    cv.cvtColor(hsv, hsv, cv.COLOR_RGB2HSV);
 
-        for (const item of legend) {
-          const { lowerBound, upperBound } = getHsvBounds(
-            item.color,
-            hsv.rows,
-            hsv.cols,
-            hsv.type()
-          );
+    const results: ExtractedPolygon[] = [];
 
-          const mask = new cv.Mat();
-          cv.inRange(hsv, lowerBound, upperBound, mask);
+    for (const item of legend) {
+      const { lowerBound, upperBound } = getHsvBounds(
+        item.color,
+        hsv.rows,
+        hsv.cols,
+        hsv.type()
+      );
 
-          const contours = new cv.MatVector();
-          const hierarchy = new cv.Mat();
+      const mask = new cv.Mat();
+      cv.inRange(hsv, lowerBound, upperBound, mask);
 
-          cv.findContours(
-            mask,
-            contours,
-            hierarchy,
-            cv.RETR_EXTERNAL,
-            cv.CHAIN_APPROX_SIMPLE
-          );
+      const contours = new cv.MatVector();
+      const hierarchy = new cv.Mat();
 
-          for (let i = 0; i < contours.size(); i++) {
-            const contour = contours.get(i);
-            const area = cv.contourArea(contour);
+      cv.findContours(
+        mask,
+        contours,
+        hierarchy,
+        cv.RETR_EXTERNAL,
+        cv.CHAIN_APPROX_SIMPLE
+      );
 
-            if (area > 100) {
-              const approx = new cv.Mat();
-              const epsilon = 0.01 * cv.arcLength(contour, true);
-              cv.approxPolyDP(contour, approx, epsilon, true);
+      for (let i = 0; i < contours.size(); i++) {
+        const contour = contours.get(i);
+        const area = cv.contourArea(contour);
 
-              const coords: { x: number; y: number }[] = [];
-              const data = approx.data32S;
-              for (let j = 0; j < data.length; j += 2) {
-                coords.push({ x: data[j], y: data[j + 1] });
-              }
+        if (area > 100) {
+          const approx = new cv.Mat();
+          const epsilon = 0.01 * cv.arcLength(contour, true);
+          cv.approxPolyDP(contour, approx, epsilon, true);
 
-              if (coords.length >= 3) {
-                results.push({
-                  legendItem: item,
-                  pdfCoordinates: coords
-                });
-              }
-
-              approx.delete();
-            }
-            contour.delete();
+          const coords: { x: number; y: number }[] = [];
+          const data = approx.data32S;
+          for (let j = 0; j < data.length; j += 2) {
+            coords.push({ x: data[j], y: data[j + 1] });
           }
 
-          lowerBound.delete();
-          upperBound.delete();
-          mask.delete();
-          contours.delete();
-          hierarchy.delete();
+          if (coords.length >= 3) {
+            results.push({
+              legendItem: item,
+              pdfCoordinates: coords
+            });
+          }
+
+          approx.delete();
         }
-
-        src.delete();
-        hsv.delete();
-
-        resolve(results);
-      } catch (err) {
-        reject(err instanceof Error ? err : new Error(String(err)));
+        contour.delete();
       }
-    });
+
+      lowerBound.delete();
+      upperBound.delete();
+      mask.delete();
+      contours.delete();
+      hierarchy.delete();
+    }
+
+    src.delete();
+    hsv.delete();
+
+    return results;
   }
 }
 

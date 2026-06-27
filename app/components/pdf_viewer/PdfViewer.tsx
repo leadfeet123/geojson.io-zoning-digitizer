@@ -401,7 +401,7 @@ export function PdfViewer({
 
     setIsExtractingShapes(true);
     try {
-      const transform = solveAffineTransform(confirmedGCPs);
+      const transformResult = solveAffineTransform(confirmedGCPs);
       const extractedPolygons = await spatialExtractionEngine.extractShapes(
         canvasRef.current,
         extractedLegend.zones
@@ -410,7 +410,7 @@ export function PdfViewer({
       const newFeatures: DigitizerFeature[] = extractedPolygons.map((poly) => {
         // Transform coordinates
         const mapCoords = poly.pdfCoordinates.map((pt) => {
-          const mapPt = transformPoint(pt, transform);
+          const mapPt = transformPoint(transformResult.transform, pt);
           return [mapPt.lon, mapPt.lat];
         });
 
