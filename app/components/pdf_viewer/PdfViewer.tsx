@@ -108,6 +108,7 @@ export function PdfViewer({
 
   const canGoPrev = activePage > 1;
   const canGoNext = activePage < pageCount;
+  const totalControlPointCount = controlPoints.length;
   const confirmedControlPointCount = useMemo(
     () => controlPoints.filter((point) => point.confirmed).length,
     [controlPoints]
@@ -557,12 +558,27 @@ export function PdfViewer({
                 Spatial Extraction (Step 4)
               </p>
               <p className="text-xs text-gray-700 dark:text-gray-200">
-                Confirmed GCPs: {confirmedControlPointCount}/3 | Legend zones:{' '}
+                Control points: {totalControlPointCount} total,{' '}
+                {confirmedControlPointCount} confirmed | Legend zones:{' '}
                 {hasLegend ? (extractedLegend?.zones.length ?? 0) : 0}
               </p>
               {!hasLegend && (
                 <p className="text-xs text-amber-700 dark:text-amber-300">
                   First use Crop Legend, then run Extract Shapes.
+                </p>
+              )}
+              {totalControlPointCount >= 3 &&
+                confirmedControlPointCount < 3 && (
+                  <p className="text-xs text-amber-700 dark:text-amber-300">
+                    You have {totalControlPointCount} points, but only{' '}
+                    {confirmedControlPointCount} confirmed. Check the Confirmed
+                    boxes in Control Points.
+                  </p>
+                )}
+              {totalControlPointCount < 3 && (
+                <p className="text-xs text-amber-700 dark:text-amber-300">
+                  Add at least {3 - totalControlPointCount} more control point
+                  {3 - totalControlPointCount === 1 ? '' : 's'}.
                 </p>
               )}
               {hasLegend && confirmedControlPointCount < 3 && (
@@ -584,7 +600,7 @@ export function PdfViewer({
               title={
                 canRunSpatialExtraction
                   ? 'Extract zoning shapes based on legend and confirmed control points'
-                  : 'Need a legend and at least 3 confirmed control points'
+                  : `Blocked: ${hasLegend ? 'legend ready' : 'legend missing'}, ${confirmedControlPointCount}/3 confirmed points`
               }
             >
               {isExtractingShapes
@@ -670,6 +686,32 @@ export function PdfViewer({
                     const left = point.pdf.x * renderedScale;
                     const top = point.pdf.y * renderedScale;
                     const isActive = point.id === activeControlPointId;
+                    const pointStyle = isActive
+                      ? {
+                          left,
+                          top,
+                          backgroundImage:
+                            'repeating-linear-gradient(135deg, #ffffff 0px, #ffffff 3px, #111111 3px, #111111 6px)',
+                          boxShadow:
+                            '0 0 0 2px rgba(245, 158, 11, 0.9), 0 2px 8px rgba(0,0,0,0.4)'
+                        }
+                      : point.confirmed
+                        ? {
+                            left,
+                            top,
+                            backgroundImage:
+                              'repeating-linear-gradient(135deg, #86efac 0px, #86efac 3px, #166534 3px, #166534 6px)',
+                            boxShadow:
+                              '0 0 0 1px rgba(21, 128, 61, 0.9), 0 2px 6px rgba(0,0,0,0.35)'
+                          }
+                        : {
+                            left,
+                            top,
+                            backgroundImage:
+                              'repeating-linear-gradient(135deg, #bae6fd 0px, #bae6fd 3px, #0c4a6e 3px, #0c4a6e 6px)',
+                            boxShadow:
+                              '0 0 0 1px rgba(3, 105, 161, 0.85), 0 2px 6px rgba(0,0,0,0.35)'
+                          };
 
                     return (
                       <button
@@ -681,12 +723,12 @@ export function PdfViewer({
                         }}
                         className={
                           isActive
-                            ? 'absolute -translate-x-1/2 -translate-y-1/2 w-5 h-5 rounded-full border-2 border-white bg-amber-500 text-[10px] font-semibold text-white pointer-events-auto shadow'
+                            ? 'absolute -translate-x-1/2 -translate-y-1/2 w-5 h-5 rounded-full border-2 border-black text-[10px] font-semibold text-black pointer-events-auto shadow'
                             : point.confirmed
-                              ? 'absolute -translate-x-1/2 -translate-y-1/2 w-4 h-4 rounded-full border border-white bg-emerald-500 text-[10px] font-semibold text-white pointer-events-auto shadow'
-                              : 'absolute -translate-x-1/2 -translate-y-1/2 w-4 h-4 rounded-full border border-white bg-sky-500 text-[10px] font-semibold text-white pointer-events-auto shadow'
+                              ? 'absolute -translate-x-1/2 -translate-y-1/2 w-4 h-4 rounded-full border border-black/70 bg-emerald-400 text-[10px] font-semibold text-black pointer-events-auto shadow'
+                              : 'absolute -translate-x-1/2 -translate-y-1/2 w-4 h-4 rounded-full border border-black/70 bg-sky-300 text-[10px] font-semibold text-black pointer-events-auto shadow'
                         }
-                        style={{ left, top }}
+                        style={pointStyle}
                         aria-label={`Control point ${index + 1} on page ${activePage}`}
                         title={`Control point ${index + 1}`}
                       >
@@ -696,10 +738,12 @@ export function PdfViewer({
                   })}
                   {pendingPointOnPage && (
                     <div
-                      className="absolute -translate-x-1/2 -translate-y-1/2 w-4 h-4 rounded-full border border-white bg-amber-500/90 shadow"
+                      className="absolute -translate-x-1/2 -translate-y-1/2 w-4 h-4 rounded-full border border-black shadow"
                       style={{
                         left: pendingPointOnPage.x * renderedScale,
-                        top: pendingPointOnPage.y * renderedScale
+                        top: pendingPointOnPage.y * renderedScale,
+                        backgroundImage:
+                          'repeating-linear-gradient(135deg, #fde68a 0px, #fde68a 3px, #78350f 3px, #78350f 6px)'
                       }}
                       aria-label="Pending control point on PDF"
                       title="Pending control point"
