@@ -69,7 +69,7 @@ export class GeminiPolygonValidationAdapter implements AiPolygonValidationAdapte
       });
 
       const prompt =
-        'Analyze this image crop containing a detected shape from a zoning map. Does this shape look like a valid zoning polygon, or does it look like noise, text artifacts, or an invalid shape (such as a line)? Return isValid as true or false, confidence between 0.0 and 1.0, and a concise reason.';
+        'Analyze this image crop containing a detected shape from a zoning map. Does this shape look like a clear, meaningful zoning area (like a parcel, block, or district), or is it an extraction artifact? Reject slivers, very jagged kink fragments, text outlines, and single lines. Return isValid as true or false, confidence between 0.0 and 1.0, and a concise reason.';
 
       const base64Image = Buffer.from(request.imageBytes).toString('base64');
 

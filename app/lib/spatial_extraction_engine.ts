@@ -321,6 +321,19 @@ export class OpenCvExtractionEngine implements SpatialExtractionEngine {
                     feature.geometry.coordinates.length > 0
                   ) {
                     const ring = feature.geometry.coordinates[0];
+
+                    // Filter out tiny slivers generated during unkinking
+                    let planarArea = 0;
+                    for (
+                      let n = 0, m = ring.length - 1;
+                      n < ring.length;
+                      m = n++
+                    ) {
+                      planarArea +=
+                        (ring[m][0] + ring[n][0]) * (ring[m][1] - ring[n][1]);
+                    }
+                    if (Math.abs(planarArea / 2.0) < 400) continue;
+
                     validCoordsList.push(
                       ring.map((c) => ({ x: c[0], y: c[1] }))
                     );
@@ -363,10 +376,11 @@ export class OpenCvExtractionEngine implements SpatialExtractionEngine {
 
           const turfPoly = polygon([closedCoords.map((c) => [c.x, c.y])]);
           const box = turfBbox(turfPoly);
-          const boxMinX = Math.max(0, Math.floor(box[0]));
-          const boxMinY = Math.max(0, Math.floor(box[1]));
-          const boxMaxX = Math.min(canvas.width, Math.ceil(box[2]));
-          const boxMaxY = Math.min(canvas.height, Math.ceil(box[3]));
+          const PADDING = 20; // Provide context around the shape for the AI
+          const boxMinX = Math.max(0, Math.floor(box[0]) - PADDING);
+          const boxMinY = Math.max(0, Math.floor(box[1]) - PADDING);
+          const boxMaxX = Math.min(canvas.width, Math.ceil(box[2]) + PADDING);
+          const boxMaxY = Math.min(canvas.height, Math.ceil(box[3]) + PADDING);
 
           const width = boxMaxX - boxMinX;
           const height = boxMaxY - boxMinY;
