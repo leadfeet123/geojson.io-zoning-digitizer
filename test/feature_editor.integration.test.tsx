@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/require-await */
 // @vitest-environment jsdom
 
 import { FeatureEditor } from 'app/components/feature_editor/FeatureEditor';
@@ -85,7 +86,7 @@ describe('FeatureEditor integration', () => {
 
     const municipalityInput = container.querySelector(
       'input[placeholder="e.g., San Jose, CA"]'
-    ) as HTMLInputElement | null;
+    );
     expect(municipalityInput).not.toBeNull();
 
     await act(async () => {
@@ -100,7 +101,7 @@ describe('FeatureEditor integration', () => {
 
     const suggestButton = Array.from(container.querySelectorAll('button')).find(
       (button) => button.textContent?.includes('Suggest Planning Class')
-    ) as HTMLButtonElement | undefined;
+    );
 
     expect(suggestButton).toBeDefined();
 
@@ -115,7 +116,7 @@ describe('FeatureEditor integration', () => {
 
     const acceptButton = Array.from(container.querySelectorAll('button')).find(
       (button) => button.textContent?.trim() === 'Accept'
-    ) as HTMLButtonElement | undefined;
+    );
 
     expect(acceptButton).toBeDefined();
 
@@ -181,7 +182,7 @@ describe('FeatureEditor integration', () => {
 
     const suggestButton = Array.from(container.querySelectorAll('button')).find(
       (button) => button.textContent?.includes('Suggest Planning Class')
-    ) as HTMLButtonElement | undefined;
+    );
 
     expect(suggestButton).toBeDefined();
 
@@ -191,9 +192,7 @@ describe('FeatureEditor integration', () => {
 
     const overrideButton = Array.from(
       container.querySelectorAll('button')
-    ).find((button) => button.textContent?.trim() === 'Override') as
-      | HTMLButtonElement
-      | undefined;
+    ).find((button) => button.textContent?.trim() === 'Override');
 
     expect(overrideButton).toBeDefined();
 

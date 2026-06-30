@@ -170,7 +170,7 @@ export class GeminiClassificationAdapter implements ClassificationAdapter {
         : 'Municipality context: unknown.';
 
       const prompt =
-        `Given raw zoning label \"${request.rawZoningLabel}\", suggest up to 3 planning classes. ` +
+        `Given raw zoning label "${request.rawZoningLabel}", suggest up to 3 planning classes. ` +
         `${municipalityContext} Return confidence as numbers between 0.0 and 1.0 and include concise rationale per suggestion.`;
 
       const result = await model.generateContent(prompt);

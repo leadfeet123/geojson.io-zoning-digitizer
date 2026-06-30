@@ -1,5 +1,10 @@
 import cvModule from '@techstark/opencv-js';
+import turfKinks from '@turf/kinks';
+import unkinkPolygon from '@turf/unkink-polygon';
+import { polygon, Position } from '@turf/helpers';
+import turfBbox from '@turf/bbox';
 import type { LegendItem } from './ocr_adapter';
+import { defaultPolygonValidationAdapter } from './ai_polygon_validation_adapter';
 
 const OPEN_CV_INIT_TIMEOUT_MS = 15_000;
 let openCvReadyPromise: Promise<void> | null = null;
@@ -267,18 +272,18 @@ export class OpenCvExtractionEngine implements SpatialExtractionEngine {
         cv.CHAIN_APPROX_SIMPLE
       );
 
+      const preliminaryResults: (ExtractedPolygon & {
+        _needsValidation?: boolean;
+      })[] = [];
+
       for (let i = 0; i < contours.size(); i++) {
         const contour = contours.get(i);
         const area = cv.contourArea(contour);
         const perimeter = cv.arcLength(contour, true);
 
-        // Filter out very small noise specs
-        // and filter out long/thin shapes (like drawn parcel lines) using circularity/isoperimetric quotient
-        // 4 * PI * Area / Perimeter^2. Thin lines are typically < 0.05
         const circularity =
           perimeter > 0 ? (4 * Math.PI * area) / (perimeter * perimeter) : 0;
 
-        // Using 400 as base area to restrict extreme tiny speckles.
         if (area > 400 && circularity > 0.04) {
           const approx = new cv.Mat();
           const epsilon = 0.01 * cv.arcLength(contour, true);
@@ -291,15 +296,149 @@ export class OpenCvExtractionEngine implements SpatialExtractionEngine {
           }
 
           if (coords.length >= 3) {
-            results.push({
-              legendItem: item,
-              pdfCoordinates: coords
-            });
+            // Close the polygon if not closed
+            if (
+              coords[0].x !== coords[coords.length - 1].x ||
+              coords[0].y !== coords[coords.length - 1].y
+            ) {
+              coords.push({ x: coords[0].x, y: coords[0].y });
+            }
+
+            if (coords.length >= 4) {
+              const turfCoords: Position[][] = [coords.map((c) => [c.x, c.y])];
+              const turfPoly = polygon(turfCoords);
+              const kinks = turfKinks(turfPoly);
+
+              const validCoordsList: { x: number; y: number }[][] = [];
+              let needsValidation = false;
+
+              if (kinks.features.length > 0) {
+                needsValidation = true;
+                const unkinked = unkinkPolygon(turfPoly);
+                for (const feature of unkinked.features) {
+                  if (
+                    feature.geometry.type === 'Polygon' &&
+                    feature.geometry.coordinates.length > 0
+                  ) {
+                    const ring = feature.geometry.coordinates[0];
+
+                    // Filter out tiny slivers generated during unkinking
+                    let planarArea = 0;
+                    for (
+                      let n = 0, m = ring.length - 1;
+                      n < ring.length;
+                      m = n++
+                    ) {
+                      planarArea +=
+                        (ring[m][0] + ring[n][0]) * (ring[m][1] - ring[n][1]);
+                    }
+                    if (Math.abs(planarArea / 2.0) < 400) continue;
+
+                    validCoordsList.push(
+                      ring.map((c) => ({ x: c[0], y: c[1] }))
+                    );
+                  }
+                }
+              } else {
+                validCoordsList.push(coords);
+                if (coords.length > 50 || circularity < 0.1) {
+                  needsValidation = true;
+                }
+              }
+
+              for (const validCoords of validCoordsList) {
+                preliminaryResults.push({
+                  legendItem: item,
+                  pdfCoordinates: validCoords,
+                  _needsValidation: needsValidation
+                });
+              }
+            }
           }
 
           approx.delete();
         }
         contour.delete();
+      }
+
+      for (const res of preliminaryResults) {
+        if (res._needsValidation) {
+          const coords = res.pdfCoordinates;
+          if (coords.length < 3) continue;
+
+          const closedCoords = [...coords];
+          if (
+            closedCoords[0].x !== closedCoords[closedCoords.length - 1].x ||
+            closedCoords[0].y !== closedCoords[closedCoords.length - 1].y
+          ) {
+            closedCoords.push(closedCoords[0]);
+          }
+
+          const turfPoly = polygon([closedCoords.map((c) => [c.x, c.y])]);
+          const box = turfBbox(turfPoly);
+          const PADDING = 20; // Provide context around the shape for the AI
+          const boxMinX = Math.max(0, Math.floor(box[0]) - PADDING);
+          const boxMinY = Math.max(0, Math.floor(box[1]) - PADDING);
+          const boxMaxX = Math.min(canvas.width, Math.ceil(box[2]) + PADDING);
+          const boxMaxY = Math.min(canvas.height, Math.ceil(box[3]) + PADDING);
+
+          const width = boxMaxX - boxMinX;
+          const height = boxMaxY - boxMinY;
+
+          if (width > 0 && height > 0) {
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = width;
+            tempCanvas.height = height;
+            const ctx = tempCanvas.getContext('2d');
+            if (ctx) {
+              ctx.drawImage(
+                canvas,
+                boxMinX,
+                boxMinY,
+                width,
+                height,
+                0,
+                0,
+                width,
+                height
+              );
+
+              const dataUrl = tempCanvas.toDataURL('image/png');
+              const base64Data = dataUrl.split(',')[1];
+              const binaryString = window.atob(base64Data);
+              const len = binaryString.length;
+              const bytes = new Uint8Array(len);
+              for (let k = 0; k < len; k++) {
+                bytes[k] = binaryString.charCodeAt(k);
+              }
+
+              try {
+                const aiResult =
+                  await defaultPolygonValidationAdapter.validatePolygon({
+                    imageBytes: bytes,
+                    mimeType: 'image/png'
+                  });
+
+                if (aiResult.isValid) {
+                  results.push({
+                    legendItem: res.legendItem,
+                    pdfCoordinates: res.pdfCoordinates
+                  });
+                }
+              } catch (e) {
+                results.push({
+                  legendItem: res.legendItem,
+                  pdfCoordinates: res.pdfCoordinates
+                });
+              }
+            }
+          }
+        } else {
+          results.push({
+            legendItem: res.legendItem,
+            pdfCoordinates: res.pdfCoordinates
+          });
+        }
       }
 
       lowerBound.delete();
