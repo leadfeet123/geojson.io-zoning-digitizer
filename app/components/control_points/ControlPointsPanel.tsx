@@ -17,6 +17,7 @@ import {
   controlPointPlacementModeAtom,
   controlPointsAtom,
   pendingPdfPointAtom,
+  relocatingTargetAtom,
   type ControlPointPair
 } from 'state/control_points';
 import { activePdfPageAtom } from 'state/digitizer';
@@ -82,10 +83,8 @@ export function ControlPointsPanel({
   const [isSuggesting, setIsSuggesting] = useState(false);
   const [suggestionError, setSuggestionError] = useState<string | null>(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
-  // When non-null, the next map click will reposition this suggestion or control point.
-  const [relocatingTarget, setRelocatingTarget] = useState<
-    { type: 'suggestion'; id: string } | { type: 'point'; id: string } | null
-  >(null);
+  // Shared atom — also read by ControlPointMapCapture to suppress new-point creation.
+  const [relocatingTarget, setRelocatingTarget] = useAtom(relocatingTargetAtom);
   const priorCursorRef = useRef<string>('');
 
   // Wire up the crosshair cursor and single-click handler when a relocation is pending.
@@ -501,11 +500,17 @@ export function ControlPointsPanel({
                       <button
                         type="button"
                         onClick={() => {
-                          setRelocatingTarget(
-                            relocatingTarget?.id === suggestion.id
-                              ? null
-                              : { type: 'suggestion', id: suggestion.id }
-                          );
+                          if (relocatingTarget?.id === suggestion.id) {
+                            setRelocatingTarget(null);
+                          } else {
+                            // Cancel any in-flight Add Control Point workflow first
+                            // so ControlPointMapCapture doesn't also fire.
+                            cancelPlacement();
+                            setRelocatingTarget({
+                              type: 'suggestion',
+                              id: suggestion.id
+                            });
+                          }
                         }}
                         className={`px-2 py-1 text-xs rounded border ${
                           relocatingTarget?.id === suggestion.id
@@ -717,11 +722,14 @@ export function ControlPointsPanel({
                     <button
                       type="button"
                       onClick={() => {
-                        setRelocatingTarget(
-                          relocatingTarget?.id === point.id
-                            ? null
-                            : { type: 'point', id: point.id }
-                        );
+                        if (relocatingTarget?.id === point.id) {
+                          setRelocatingTarget(null);
+                        } else {
+                          // Cancel any in-flight Add Control Point workflow first
+                          // so ControlPointMapCapture doesn't also fire.
+                          cancelPlacement();
+                          setRelocatingTarget({ type: 'point', id: point.id });
+                        }
                       }}
                       className={`mr-2 px-2 py-1 rounded border text-xs ${
                         relocatingTarget?.id === point.id

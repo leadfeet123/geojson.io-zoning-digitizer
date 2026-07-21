@@ -6,7 +6,8 @@ import { useContext, useEffect } from 'react';
 import {
   controlPointPlacementModeAtom,
   controlPointsAtom,
-  pendingPdfPointAtom
+  pendingPdfPointAtom,
+  relocatingTargetAtom
 } from 'state/control_points';
 
 /**
@@ -19,11 +20,18 @@ export function ControlPointMapCapture() {
   );
   const [pendingPdfPoint, setPendingPdfPoint] = useAtom(pendingPdfPointAtom);
   const setControlPoints = useSetAtom(controlPointsAtom);
+  const [relocatingTarget] = useAtom(relocatingTargetAtom);
 
   useEffect(() => {
     const map = pmap?.map;
 
-    if (!map || placementMode !== 'awaiting_map' || !pendingPdfPoint) {
+    // Do not add a new point while a relocation is in progress.
+    if (
+      !map ||
+      placementMode !== 'awaiting_map' ||
+      !pendingPdfPoint ||
+      relocatingTarget !== null
+    ) {
       return;
     }
 
@@ -57,6 +65,7 @@ export function ControlPointMapCapture() {
     pmap,
     placementMode,
     pendingPdfPoint,
+    relocatingTarget,
     setControlPoints,
     setPendingPdfPoint,
     setPlacementMode

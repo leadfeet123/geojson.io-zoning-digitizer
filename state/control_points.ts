@@ -43,3 +43,13 @@ export const pendingPdfPointAtom = atom<PdfPoint | null>(null);
  * Currently focused control point for cross-panel highlight/sync behavior.
  */
 export const activeControlPointIdAtom = atom<string | null>(null);
+
+/**
+ * When non-null, the next map click repositions this point rather than adding a new one.
+ * Stored in shared state so ControlPointMapCapture can gate on it and avoid double-firing.
+ */
+export type RelocatingTarget =
+  | { type: 'suggestion'; id: string }
+  | { type: 'point'; id: string };
+
+export const relocatingTargetAtom = atom<RelocatingTarget | null>(null);
