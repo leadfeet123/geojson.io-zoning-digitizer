@@ -105,25 +105,37 @@ export function parseGeorefSuggestionResponse(
 
     return parsed.suggestions
       .filter((suggestion) => suggestion?.pdf && suggestion?.map)
-      .map((suggestion) => ({
-        id: nanoid(10),
-        pdf: {
-          x: Number(suggestion.pdf.x) || 0,
-          y: Number(suggestion.pdf.y) || 0,
-          page: Number(suggestion.pdf.page) || fallbackPage
-        },
-        map: {
-          lon: Number(suggestion.map.lon) || 0,
-          lat: Number(suggestion.map.lat) || 0
-        },
-        confidence: Math.max(
-          0,
-          Math.min(1, Number(suggestion.confidence) || 0)
-        ),
-        rationale: String(suggestion.rationale ?? '').trim()
-      }))
+      .map((suggestion) => {
+        const lon =
+          typeof suggestion.map.lon === 'number'
+            ? suggestion.map.lon
+            : Number(suggestion.map.lon);
+        const lat =
+          typeof suggestion.map.lat === 'number'
+            ? suggestion.map.lat
+            : Number(suggestion.map.lat);
+        return {
+          id: nanoid(10),
+          pdf: {
+            x: Number(suggestion.pdf.x) || 0,
+            y: Number(suggestion.pdf.y) || 0,
+            page: Number(suggestion.pdf.page) || fallbackPage
+          },
+          map: {
+            lon: Number.isNaN(lon) ? 0 : lon,
+            lat: Number.isNaN(lat) ? 0 : lat
+          },
+          confidence: Math.max(
+            0,
+            Math.min(1, Number(suggestion.confidence) || 0)
+          ),
+          rationale: String(suggestion.rationale ?? '').trim()
+        };
+      })
       .filter(
         (suggestion) =>
+          suggestion.map.lon !== 0 &&
+          suggestion.map.lat !== 0 &&
           Number.isFinite(suggestion.map.lon) &&
           Number.isFinite(suggestion.map.lat)
       );
@@ -234,11 +246,19 @@ export class GeminiGeorefSuggestionAdapter implements GeorefSuggestionAdapter {
       });
 
       const prompt =
-        `Suggest exactly 4 georeference control point pairs for page ${request.page}. ` +
-        `This image is a rendering of the PDF page. Please find distinct, widely-spaced landmarks like road intersections. ` +
-        `Map center: lon ${request.mapCenter.lon}, lat ${request.mapCenter.lat}. ` +
-        `Map bounds: west ${request.mapBounds.west}, south ${request.mapBounds.south}, east ${request.mapBounds.east}, north ${request.mapBounds.north}. ` +
-        'Return 4 pairs matching the visual landmarks to their estimated lon/lat based on the map bounds. Use actual image pixel coordinates for pdf.x and pdf.y.';
+        `You are a georeferencing assistant. Your task is to find exactly 4 widely-spaced visual landmarks (like distinct intersections or corners) in the provided map image and estimate their real-world longitude and latitude.\n\n` +
+        `The map image covers exactly these geographic bounds:\n` +
+        `West (min lon): ${request.mapBounds.west}\n` +
+        `South (min lat): ${request.mapBounds.south}\n` +
+        `East (max lon): ${request.mapBounds.east}\n` +
+        `North (max lat): ${request.mapBounds.north}\n\n` +
+        `RULES:\n` +
+        `1. 'pdf.x' and 'pdf.y' MUST be the exact pixel coordinates of the landmark in the provided image.\n` +
+        `2. 'map.lon' MUST be a number between ${request.mapBounds.west} and ${request.mapBounds.east}.\n` +
+        `3. 'map.lat' MUST be a number between ${request.mapBounds.south} and ${request.mapBounds.north}.\n` +
+        `4. DO NOT output coordinates like 0,0 unless the bounds explicitly contain the equator/prime meridian.\n` +
+        `5. Return exactly 4 points representing distinct landmarks across the image.\n` +
+        `6. 'pdf.page' should be ${request.page}.\n`;
 
       const contentArgs: any[] = [prompt];
       if (request.base64Image) {
