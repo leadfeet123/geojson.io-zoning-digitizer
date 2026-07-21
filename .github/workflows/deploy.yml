@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       NODE_ENV: test
-      VITE_PUBLIC_MAPBOX_TOKEN: ${{ secrets.VITE_PUBLIC_MAPBOX_TOKEN }}
+      VITE_PUBLIC_MAPBOX_TOKEN: ${{ secrets.MAPBOX_TOKEN }}
     steps:
       - name: Check out repo
         uses: actions/checkout@v4
@@ -39,7 +39,7 @@ jobs:
       pages: write
       id-token: write
     env:
-      VITE_PUBLIC_MAPBOX_TOKEN: ${{ secrets.VITE_PUBLIC_MAPBOX_TOKEN }}
+      VITE_PUBLIC_MAPBOX_TOKEN: ${{ secrets.MAPBOX_TOKEN }}
       VITE_GA_MEASUREMENT_ID: ${{ secrets.VITE_GA_MEASUREMENT_ID }}
       NODE_OPTIONS: --max-old-space-size=6144
     if: github.event_name != 'pull_request'
