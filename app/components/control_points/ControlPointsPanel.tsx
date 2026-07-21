@@ -218,6 +218,14 @@ export function ControlPointsPanel({
       const center = map.getCenter();
       const bounds = map.getBounds();
 
+      let base64Image: string | undefined;
+      const canvas = document.querySelector(
+        `canvas[data-pdf-page="${activePdfPage}"]`
+      ) as HTMLCanvasElement;
+      if (canvas) {
+        base64Image = canvas.toDataURL('image/png');
+      }
+
       const nextSuggestions =
         await defaultGeorefSuggestionAdapter.suggestPoints({
           page: activePdfPage,
@@ -230,7 +238,8 @@ export function ControlPointsPanel({
             south: bounds.getSouth(),
             east: bounds.getEast(),
             north: bounds.getNorth()
-          }
+          },
+          base64Image
         });
 
       setSuggestions(nextSuggestions.slice(0, 1));

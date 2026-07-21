@@ -34,6 +34,7 @@ export interface GeorefSuggestionRequest {
     east: number;
     north: number;
   };
+  base64Image?: string; // Optional because Proxy or Heuristic might not need it
 }
 
 export interface GeorefSuggestionAdapter {
@@ -192,7 +193,7 @@ export class GeminiGeorefSuggestionAdapter implements GeorefSuggestionAdapter {
 
     try {
       const model = genAI.getGenerativeModel({
-        model: 'gemini-3.5-flash',
+        model: 'gemini-1.5-pro',
         generationConfig: {
           responseMimeType: 'application/json',
           responseSchema: {
@@ -234,11 +235,25 @@ export class GeminiGeorefSuggestionAdapter implements GeorefSuggestionAdapter {
 
       const prompt =
         `Suggest exactly 4 georeference control point pairs for page ${request.page}. ` +
+        `This image is a rendering of the PDF page. Please find distinct, widely-spaced landmarks like road intersections. ` +
         `Map center: lon ${request.mapCenter.lon}, lat ${request.mapCenter.lat}. ` +
         `Map bounds: west ${request.mapBounds.west}, south ${request.mapBounds.south}, east ${request.mapBounds.east}, north ${request.mapBounds.north}. ` +
-        'Return balanced corner-like points across the extent. Use approximate PDF pixel coordinates in a 0-1200 range and include confidence from 0.0 to 1.0 with concise rationale.';
+        'Return 4 pairs matching the visual landmarks to their estimated lon/lat based on the map bounds. Use actual image pixel coordinates for pdf.x and pdf.y.';
 
-      const result = await model.generateContent(prompt);
+      const contentArgs: any[] = [prompt];
+      if (request.base64Image) {
+        const parts = request.base64Image.split(',');
+        const mimeType = parts[0].match(/:(.*?);/)?.[1] || 'image/png';
+        const base64Data = parts[1];
+        contentArgs.push({
+          inlineData: {
+            data: base64Data,
+            mimeType: mimeType
+          }
+        });
+      }
+
+      const result = await model.generateContent(contentArgs);
       const parsed = parseGeorefSuggestionResponse(
         result.response.text(),
         request.page
