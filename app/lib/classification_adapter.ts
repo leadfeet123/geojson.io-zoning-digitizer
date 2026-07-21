@@ -141,7 +141,7 @@ export class GeminiClassificationAdapter implements ClassificationAdapter {
 
     try {
       const model = genAI.getGenerativeModel({
-        model: 'gemini-1.5-pro-latest',
+        model: aiEnv.GEMINI_MODEL,
         generationConfig: {
           responseMimeType: 'application/json',
           responseSchema: {
