@@ -211,6 +211,22 @@ export class GeminiGeorefSuggestionAdapter implements GeorefSuggestionAdapter {
           responseSchema: {
             type: SchemaType.OBJECT,
             properties: {
+              geographic_context: {
+                type: SchemaType.OBJECT,
+                properties: {
+                  identified_region: { type: SchemaType.STRING },
+                  notable_streets: {
+                    type: SchemaType.ARRAY,
+                    items: { type: SchemaType.STRING }
+                  },
+                  analysis_rationale: { type: SchemaType.STRING }
+                },
+                required: [
+                  'identified_region',
+                  'notable_streets',
+                  'analysis_rationale'
+                ]
+              },
               suggestions: {
                 type: SchemaType.ARRAY,
                 items: {
@@ -240,25 +256,27 @@ export class GeminiGeorefSuggestionAdapter implements GeorefSuggestionAdapter {
                 }
               }
             },
-            required: ['suggestions']
+            required: ['geographic_context', 'suggestions']
           }
         }
       });
 
       const prompt =
-        `You are a georeferencing assistant. Your task is to find exactly 4 widely-spaced visual landmarks (like distinct intersections or corners) in the provided map image and estimate their real-world longitude and latitude.\n\n` +
-        `The map image covers exactly these geographic bounds:\n` +
-        `West (min lon): ${request.mapBounds.west}\n` +
-        `South (min lat): ${request.mapBounds.south}\n` +
-        `East (max lon): ${request.mapBounds.east}\n` +
-        `North (max lat): ${request.mapBounds.north}\n\n` +
+        `You are an expert GIS and georeferencing AI. Your task is to analyze the provided zoning map image and identify matching GPS coordinates for landmarks.\n\n` +
+        `STEP 1: GEOGRAPHIC IDENTIFICATION\n` +
+        `Read the text on the map (title blocks, city/county names, road names, highways). Fill out the 'geographic_context' object with the region you identified, the notable streets, and your reasoning.\n\n` +
+        `STEP 2: LANDMARK TRIANGULATION\n` +
+        `Based on the context you just extracted, find exactly 4 widely-spaced visual landmarks (like distinct intersections of the streets you found) in the image, and determine their real-world longitude and latitude.\n\n` +
+        `The user's current interactive map viewport is roughly around:\n` +
+        `Center: Lon ${request.mapCenter.lon}, Lat ${request.mapCenter.lat}\n` +
+        `Bounds: [W: ${request.mapBounds.west}, S: ${request.mapBounds.south}, E: ${request.mapBounds.east}, N: ${request.mapBounds.north}]\n\n` +
         `RULES:\n` +
-        `1. 'pdf.x' and 'pdf.y' MUST be the exact pixel coordinates of the landmark in the provided image.\n` +
-        `2. 'map.lon' MUST be a number between ${request.mapBounds.west} and ${request.mapBounds.east}.\n` +
-        `3. 'map.lat' MUST be a number between ${request.mapBounds.south} and ${request.mapBounds.north}.\n` +
-        `4. DO NOT output coordinates like 0,0 unless the bounds explicitly contain the equator/prime meridian.\n` +
-        `5. Return exactly 4 points representing distinct landmarks across the image.\n` +
-        `6. 'pdf.page' should be ${request.page}.\n`;
+        `1. Use the provided map bounds ONLY as a hint. If your geographic identification proves the map is somewhere else (e.g. the PDF says 'Cook County, IL' but the map bounds are in New York), IGNORE the map bounds and use the true GPS coordinates for the real-world location you identified.\n` +
+        `2. 'pdf.x' and 'pdf.y' MUST be the exact pixel coordinates on the provided image where the intersection/landmark is located.\n` +
+        `3. 'map.lon' and 'map.lat' MUST be the real-world GPS coordinates for that specific intersection.\n` +
+        `4. DO NOT output [0,0] coordinates.\n` +
+        `5. Provide exactly 4 widely-spaced points.\n` +
+        `6. 'pdf.page' must be ${request.page}.\n`;
 
       const contentArgs: any[] = [prompt];
       if (request.base64Image) {
