@@ -4,9 +4,10 @@ import {
   type GeorefSuggestion
 } from 'app/lib/georef_suggestion_adapter';
 import { MapContext } from 'app/context/map_context';
+import mapboxgl from 'mapbox-gl';
 import { useAtom } from 'jotai';
 import { nanoid } from 'nanoid';
-import { useContext, useMemo, useState } from 'react';
+import { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
   solveAffineTransform,
   type TransformControlPoint
@@ -28,15 +29,10 @@ function formatPixel(value: number): string {
   return value.toFixed(1);
 }
 
-function statusText(mode: string): string {
-  if (mode === 'awaiting_pdf') {
-    return 'Click a point on the PDF panel';
-  }
-
-  if (mode === 'awaiting_map') {
-    return 'Now click the matching point on the map';
-  }
-
+function statusText(mode: string, relocating: boolean): string {
+  if (relocating) return 'Click the map to reposition this point';
+  if (mode === 'awaiting_pdf') return 'Click a point on the PDF panel';
+  if (mode === 'awaiting_map') return 'Now click the matching point on the map';
   return 'Idle';
 }
 
@@ -86,6 +82,45 @@ export function ControlPointsPanel({
   const [isSuggesting, setIsSuggesting] = useState(false);
   const [suggestionError, setSuggestionError] = useState<string | null>(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  // When non-null, the next map click will reposition this suggestion or control point.
+  const [relocatingTarget, setRelocatingTarget] = useState<
+    { type: 'suggestion'; id: string } | { type: 'point'; id: string } | null
+  >(null);
+  const priorCursorRef = useRef<string>('');
+
+  // Wire up the crosshair cursor and single-click handler when a relocation is pending.
+  useEffect(() => {
+    const mapInstance = map;
+    if (!mapInstance || !relocatingTarget) return;
+
+    priorCursorRef.current = mapInstance.getCanvas().style.cursor;
+    mapInstance.getCanvas().style.cursor = 'crosshair';
+
+    const onMapClick = (event: mapboxgl.MapMouseEvent) => {
+      const { lng, lat } = event.lngLat;
+      if (relocatingTarget.type === 'suggestion') {
+        setSuggestions((prev) =>
+          prev.map((s) =>
+            s.id === relocatingTarget.id ? { ...s, map: { lon: lng, lat } } : s
+          )
+        );
+      } else {
+        setControlPoints((prev) =>
+          prev.map((p) =>
+            p.id === relocatingTarget.id ? { ...p, map: { lon: lng, lat } } : p
+          )
+        );
+      }
+      setRelocatingTarget(null);
+    };
+
+    mapInstance.once('click', onMapClick);
+
+    return () => {
+      mapInstance.off('click', onMapClick);
+      mapInstance.getCanvas().style.cursor = priorCursorRef.current;
+    };
+  }, [map, relocatingTarget, setControlPoints]);
   const sortedSuggestions = useMemo(
     () => [...suggestions].sort((a, b) => b.confidence - a.confidence),
     [suggestions]
@@ -217,6 +252,10 @@ export function ControlPointsPanel({
 
       const center = map.getCenter();
       const bounds = map.getBounds();
+      if (!bounds) {
+        setSuggestionError('Map bounds are not available yet');
+        return;
+      }
 
       let base64Image: string | undefined;
       const canvas = document.querySelector(
@@ -294,8 +333,14 @@ export function ControlPointsPanel({
         <span className="text-xs text-gray-500 dark:text-gray-400">
           {confirmedCount} confirmed / {controlPoints.length} total
         </span>
-        <span className="ml-auto text-xs text-gray-600 dark:text-gray-300">
-          {statusText(placementMode)}
+        <span
+          className={`ml-auto text-xs ${
+            relocatingTarget
+              ? 'font-medium text-blue-700 dark:text-blue-300'
+              : 'text-gray-600 dark:text-gray-300'
+          }`}
+        >
+          {statusText(placementMode, relocatingTarget !== null)}
         </span>
       </header>
 
@@ -420,7 +465,7 @@ export function ControlPointsPanel({
                       Confidence {(suggestion.confidence * 100).toFixed(0)}%:{' '}
                       {suggestion.rationale}
                     </p>
-                    <div className="mt-2 flex items-center gap-2">
+                    <div className="mt-2 flex items-center gap-2 flex-wrap">
                       <label className="text-xs text-gray-700 dark:text-gray-200">
                         Lon
                         <input
@@ -453,6 +498,26 @@ export function ControlPointsPanel({
                           className="ml-1 w-28 px-2 py-1 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800"
                         />
                       </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRelocatingTarget(
+                            relocatingTarget?.id === suggestion.id
+                              ? null
+                              : { type: 'suggestion', id: suggestion.id }
+                          );
+                        }}
+                        className={`px-2 py-1 text-xs rounded border ${
+                          relocatingTarget?.id === suggestion.id
+                            ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+                            : 'border-gray-300 dark:border-gray-600'
+                        }`}
+                        title="Click the map to reposition this GPS point"
+                      >
+                        {relocatingTarget?.id === suggestion.id
+                          ? 'Cancel reposition'
+                          : 'Pick on map'}
+                      </button>
                       <button
                         type="button"
                         onClick={() => acceptSuggestion(suggestion)}
@@ -648,6 +713,26 @@ export function ControlPointsPanel({
                       className="mr-2 px-2 py-1 rounded border border-gray-300 dark:border-gray-600"
                     >
                       Locate
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRelocatingTarget(
+                          relocatingTarget?.id === point.id
+                            ? null
+                            : { type: 'point', id: point.id }
+                        );
+                      }}
+                      className={`mr-2 px-2 py-1 rounded border text-xs ${
+                        relocatingTarget?.id === point.id
+                          ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+                          : 'border-gray-300 dark:border-gray-600'
+                      }`}
+                      title="Click the map to move the GPS location for this point"
+                    >
+                      {relocatingTarget?.id === point.id
+                        ? 'Cancel'
+                        : 'Pick on map'}
                     </button>
                     <button
                       type="button"
