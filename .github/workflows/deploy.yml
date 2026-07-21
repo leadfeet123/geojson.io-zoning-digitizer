@@ -41,6 +41,7 @@ jobs:
     env:
       VITE_PUBLIC_MAPBOX_TOKEN: ${{ secrets.VITE_PUBLIC_MAPBOX_TOKEN }}
       VITE_GA_MEASUREMENT_ID: ${{ secrets.VITE_GA_MEASUREMENT_ID }}
+      NODE_OPTIONS: --max-old-space-size=6144
     if: github.event_name != 'pull_request'
     environment:
       name: github-pages
