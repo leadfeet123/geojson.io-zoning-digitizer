@@ -40,6 +40,7 @@ jobs:
       id-token: write
     env:
       VITE_PUBLIC_MAPBOX_TOKEN: ${{ secrets.MAPBOX_TOKEN }}
+      VITE_GEMINI_API_KEY: ${{ secrets.GEMINI_API }}
       VITE_GA_MEASUREMENT_ID: ${{ secrets.VITE_GA_MEASUREMENT_ID }}
       NODE_OPTIONS: --max-old-space-size=6144
     if: github.event_name != 'pull_request'
