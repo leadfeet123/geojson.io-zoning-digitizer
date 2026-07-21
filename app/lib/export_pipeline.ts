@@ -1,5 +1,6 @@
 import type { FeatureCollection } from 'types';
 import type { DigitizerFeature } from './validation_engine';
+import { repairOverlaps } from './overlap_repair_engine';
 
 export interface ExportGuardError {
   featureId: string;
@@ -27,6 +28,28 @@ export function guardExport(features: DigitizerFeature[]): ExportGuardResult {
       featureId: feature.id,
       message: `Feature "${feature.properties.raw_zoning_label || feature.id}" has confidence ${(feature.properties.confidence * 100).toFixed(0)}% and is not yet confirmed by a human.`
     }));
+
+  return { ok: errors.length === 0, errors };
+}
+
+/**
+ * Checks for unresolved polygon overlaps that must be resolved before export.
+ *
+ * Slivers and same-label duplicates can be auto-repaired by `repairOverlaps()`.
+ * This guard only blocks overlaps that require human judgment:
+ * `containment`, `significant`, and cross-label `duplicate` conflicts.
+ *
+ * Call after `guardExport` so per-feature errors are reported first.
+ */
+export function guardExportOverlaps(
+  features: DigitizerFeature[]
+): ExportGuardResult {
+  const { unresolvedIssues } = repairOverlaps(features);
+
+  const errors: ExportGuardError[] = unresolvedIssues.map((issue) => ({
+    featureId: issue.featureAId,
+    message: issue.description
+  }));
 
   return { ok: errors.length === 0, errors };
 }
