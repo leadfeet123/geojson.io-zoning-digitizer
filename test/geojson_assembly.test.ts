@@ -1,11 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { assembleZoningGeoJSON, type OptimizedPolygon, type ZoningMetadata } from '../app/lib/geojson_assembly';
+import {
+  assembleZoningGeoJSON,
+  type OptimizedPolygon,
+  type ZoningMetadata
+} from '../app/lib/geojson_assembly';
 import type { AffineTransform } from '../app/lib/transform_engine';
 
 describe('geojson_assembly', () => {
   const mockTransform: AffineTransform = {
+    type: 'affine',
     lon: { a: 1, b: 0, c: 0 }, // x -> lon
-    lat: { d: 0, e: 1, f: 0 }  // y -> lat
+    lat: { d: 0, e: 1, f: 0 } // y -> lat
   };
 
   it('transforms and closes geometries correctly, and maps metadata', () => {
@@ -98,11 +103,16 @@ describe('geojson_assembly', () => {
     const polygons: OptimizedPolygon[] = [
       {
         zoning_id: 'unknown-zone',
-        coordinates: [{ x: 1, y: 1 }, { x: 2, y: 2 }]
+        coordinates: [
+          { x: 1, y: 1 },
+          { x: 2, y: 2 }
+        ]
       }
     ];
 
     const geojson = assembleZoningGeoJSON(polygons, mockTransform, {});
-    expect(geojson.features[0].properties).toEqual({ zoning_id: 'unknown-zone' });
+    expect(geojson.features[0].properties).toEqual({
+      zoning_id: 'unknown-zone'
+    });
   });
 });

@@ -1,4 +1,8 @@
-import { transformPoint, type AffineTransform, type PdfCoordinate } from './transform_engine';
+import {
+  transformPoint,
+  type SolvedTransform,
+  type PdfCoordinate
+} from './transform_engine';
 import type { FeatureCollection, Feature, Polygon, Position } from 'geojson';
 
 export interface OptimizedPolygon {
@@ -26,7 +30,7 @@ export interface ZoningMetadata {
  */
 export function assembleZoningGeoJSON(
   pixelPolygons: OptimizedPolygon[],
-  transform: AffineTransform,
+  transform: SolvedTransform,
   metadata: ZoningMetadata
 ): FeatureCollection<Polygon> {
   const features: Feature<Polygon>[] = pixelPolygons.map((poly) => {

@@ -9,10 +9,7 @@ import { extractedLegendAtom } from 'state/digitizer';
 import { ocrAdapter } from 'app/lib/ocr_adapter';
 import { spatialExtractionEngine } from '../../lib/spatial_extraction_engine';
 import { digitizerFeaturesAtom } from 'state/digitizer_features';
-import {
-  solveAffineTransform,
-  transformPoint
-} from '../../lib/transform_engine';
+import { solveTransform, transformPoint } from '../../lib/transform_engine';
 import { newFeatureId as generateId } from '../../lib/id';
 import type { DigitizerFeature } from 'types/digitizer';
 import type { ControlPointPair } from 'state/control_points';
@@ -394,7 +391,7 @@ export function PdfViewer({
 
     setIsExtractingShapes(true);
     try {
-      const transformResult = solveAffineTransform(confirmedGCPs);
+      const transformResult = solveTransform(confirmedGCPs);
       const extractedPolygons = await spatialExtractionEngine.extractShapes(
         canvasRef.current,
         extractedLegend.zones

@@ -9,7 +9,7 @@ import { useAtom } from 'jotai';
 import { nanoid } from 'nanoid';
 import { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  solveAffineTransform,
+  solveTransform,
   type TransformControlPoint
 } from 'app/lib/transform_engine';
 import {
@@ -157,7 +157,7 @@ export function ControlPointsPanel({
     }
 
     try {
-      const solution = solveAffineTransform(confirmedPoints);
+      const solution = solveTransform(confirmedPoints);
       return {
         canSolve: true,
         solution
@@ -544,7 +544,12 @@ export function ControlPointsPanel({
           </p>
           {transformStatus.canSolve ? (
             <div className="mt-1 text-xs text-gray-700 dark:text-gray-200 space-y-1">
-              <p>Solved from {confirmedPoints.length} confirmed points</p>
+              <p>
+                {transformStatus.solution.transform.type === 'tps'
+                  ? 'TPS'
+                  : 'Affine'}{' '}
+                transform, {confirmedPoints.length} GCPs
+              </p>
               <p>
                 RMS residual:{' '}
                 {transformStatus.solution.rmsErrorMeters.toFixed(2)} m
