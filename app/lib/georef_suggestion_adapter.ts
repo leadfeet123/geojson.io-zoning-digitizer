@@ -35,6 +35,9 @@ export interface GeorefSuggestionRequest {
     north: number;
   };
   base64Image?: string; // Optional because Proxy or Heuristic might not need it
+  /** Canvas pixel dimensions so the model knows the valid coordinate range. */
+  imageWidth?: number;
+  imageHeight?: number;
 }
 
 export interface GeorefSuggestionAdapter {
@@ -270,13 +273,19 @@ export class GeminiGeorefSuggestionAdapter implements GeorefSuggestionAdapter {
         `The user's current interactive map viewport is roughly around:\n` +
         `Center: Lon ${request.mapCenter.lon}, Lat ${request.mapCenter.lat}\n` +
         `Bounds: [W: ${request.mapBounds.west}, S: ${request.mapBounds.south}, E: ${request.mapBounds.east}, N: ${request.mapBounds.north}]\n\n` +
+        (request.imageWidth && request.imageHeight
+          ? `The image you are analyzing is ${request.imageWidth}×${request.imageHeight} pixels (width×height).\n\n`
+          : '') +
         `RULES:\n` +
         `1. Use the provided map bounds ONLY as a hint. If your geographic identification proves the map is somewhere else (e.g. the PDF says 'Cook County, IL' but the map bounds are in New York), IGNORE the map bounds and use the true GPS coordinates for the real-world location you identified.\n` +
         `2. 'pdf.x' and 'pdf.y' MUST be the exact pixel coordinates on the provided image where the intersection/landmark is located.\n` +
         `3. 'map.lon' and 'map.lat' MUST be the real-world GPS coordinates for that specific intersection.\n` +
         `4. DO NOT output [0,0] coordinates.\n` +
         `5. Provide exactly 4 widely-spaced points.\n` +
-        `6. 'pdf.page' must be ${request.page}.\n`;
+        `6. 'pdf.page' must be ${request.page}.\n` +
+        (request.imageWidth && request.imageHeight
+          ? `7. 'pdf.x' must be between 0 and ${request.imageWidth}, 'pdf.y' between 0 and ${request.imageHeight}. Coordinates outside these bounds are invalid.\n`
+          : '');
 
       const contentArgs: any[] = [prompt];
       if (request.base64Image) {
@@ -297,8 +306,20 @@ export class GeminiGeorefSuggestionAdapter implements GeorefSuggestionAdapter {
         request.page
       );
 
-      if (parsed.length > 0) {
-        return parsed.slice(0, 4);
+      // Drop any suggestions whose PDF coordinates fall outside the canvas bounds.
+      const bounded =
+        request.imageWidth && request.imageHeight
+          ? parsed.filter(
+              (s) =>
+                s.pdf.x >= 0 &&
+                s.pdf.x <= request.imageWidth! &&
+                s.pdf.y >= 0 &&
+                s.pdf.y <= request.imageHeight!
+            )
+          : parsed;
+
+      if (bounded.length > 0) {
+        return bounded.slice(0, 4);
       }
 
       return this.fallback.suggestPoints(request);

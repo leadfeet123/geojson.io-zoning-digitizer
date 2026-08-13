@@ -257,11 +257,15 @@ export function ControlPointsPanel({
       }
 
       let base64Image: string | undefined;
+      let imageWidth: number | undefined;
+      let imageHeight: number | undefined;
       const canvas = document.querySelector(
         `canvas[data-pdf-page="${activePdfPage}"]`
       ) as HTMLCanvasElement;
       if (canvas) {
         base64Image = canvas.toDataURL('image/png');
+        imageWidth = canvas.width;
+        imageHeight = canvas.height;
       }
 
       const nextSuggestions =
@@ -277,7 +281,9 @@ export function ControlPointsPanel({
             east: bounds.getEast(),
             north: bounds.getNorth()
           },
-          base64Image
+          base64Image,
+          imageWidth,
+          imageHeight
         });
 
       setSuggestions(nextSuggestions.slice(0, 1));
@@ -312,11 +318,21 @@ export function ControlPointsPanel({
   }
 
   function acceptSuggestion(suggestion: GeorefSuggestion): void {
+    // Gemini returns canvas-pixel coords; divide by renderedScale to get PDF units.
+    const pdfCanvas = document.querySelector(
+      `canvas[data-pdf-page="${suggestion.pdf.page}"]`
+    ) as HTMLCanvasElement | null;
+    const scale = Number(pdfCanvas?.dataset.pdfScale) || 1;
+
     setControlPoints((current) => [
       ...current,
       {
         id: nanoid(10),
-        pdf: suggestion.pdf,
+        pdf: {
+          x: suggestion.pdf.x / scale,
+          y: suggestion.pdf.y / scale,
+          page: suggestion.pdf.page
+        },
         map: suggestion.map,
         confirmed: false
       }
