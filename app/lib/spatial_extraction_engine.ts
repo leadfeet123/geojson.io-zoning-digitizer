@@ -10,6 +10,21 @@ const OPEN_CV_INIT_TIMEOUT_MS = 15_000;
 let openCvReadyPromise: Promise<void> | null = null;
 let cv: any = null;
 
+/** Removes consecutive duplicate vertices from a polygon ring (open or closed). */
+function removeDuplicateVertices(
+  pts: { x: number; y: number }[]
+): { x: number; y: number }[] {
+  if (pts.length === 0) return pts;
+  const out: { x: number; y: number }[] = [pts[0]];
+  for (let i = 1; i < pts.length; i++) {
+    const prev = out[out.length - 1];
+    if (pts[i].x !== prev.x || pts[i].y !== prev.y) {
+      out.push(pts[i]);
+    }
+  }
+  return out;
+}
+
 export interface ExtractedPolygon {
   legendItem: LegendItem;
   pdfCoordinates: { x: number; y: number }[];
@@ -289,11 +304,14 @@ export class OpenCvExtractionEngine implements SpatialExtractionEngine {
           const epsilon = 0.01 * cv.arcLength(contour, true);
           cv.approxPolyDP(contour, approx, epsilon, true);
 
-          const coords: { x: number; y: number }[] = [];
+          const rawCoords: { x: number; y: number }[] = [];
           const data = approx.data32S;
           for (let j = 0; j < data.length; j += 2) {
-            coords.push({ x: data[j], y: data[j + 1] });
+            rawCoords.push({ x: data[j], y: data[j + 1] });
           }
+
+          // Remove consecutive duplicate vertices; simplepolygon (used by unkinkPolygon) throws on them.
+          const coords = removeDuplicateVertices(rawCoords);
 
           if (coords.length >= 3) {
             // Close the polygon if not closed
