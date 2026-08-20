@@ -2,6 +2,15 @@ import type {
   PDFDocumentProxy,
   RenderTask
 } from 'pdfjs-dist/types/src/display/api';
+import {
+  ChevronDownIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  ChevronUpIcon,
+  MinusIcon,
+  PlusIcon,
+  ResetIcon
+} from '@radix-ui/react-icons';
 import type { ChangeEvent, DragEvent, MouseEvent } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAtom } from 'jotai';
@@ -92,6 +101,8 @@ export function PdfViewer({
   const [legendCropMessage, setLegendCropMessage] = useState<string | null>(
     null
   );
+  const [isWorkflowOpen, setIsWorkflowOpen] = useState(false);
+  const [pageInput, setPageInput] = useState('1');
 
   const activePage = page ?? internalPage;
 
@@ -119,6 +130,11 @@ export function PdfViewer({
   );
   const canRunSpatialExtraction =
     confirmedControlPointCount >= 3 && hasLegend && !isExtractingShapes;
+  const extractionBlockedReason = !hasLegend
+    ? 'Crop and extract the legend before extracting shapes'
+    : confirmedControlPointCount < 3
+      ? `Confirm ${3 - confirmedControlPointCount} more control point${3 - confirmedControlPointCount === 1 ? '' : 's'}`
+      : 'Extract zoning shapes based on the legend and confirmed control points';
 
   useEffect(() => {
     onPageChangeRef.current = onPageChange;
@@ -127,6 +143,10 @@ export function PdfViewer({
   useEffect(() => {
     onPageCountChangeRef.current = onPageCountChange;
   }, [onPageCountChange]);
+
+  useEffect(() => {
+    setPageInput(String(activePage));
+  }, [activePage]);
 
   useEffect(() => {
     let cancelled = false;
@@ -506,6 +526,30 @@ export function PdfViewer({
     fileInputRef.current?.click();
   }, []);
 
+  const startLegendCrop = useCallback(() => {
+    setIsWorkflowOpen(true);
+    setLegendCropMessage(null);
+    setIsCroppingMode(true);
+  }, []);
+
+  const cancelLegendCrop = useCallback(() => {
+    setIsCroppingMode(false);
+    setIsDrawingCrop(false);
+    setCropStart(null);
+    setCropEnd(null);
+  }, []);
+
+  const commitPageInput = useCallback(() => {
+    const requestedPage = Number.parseInt(pageInput, 10);
+
+    if (Number.isFinite(requestedPage)) {
+      setPage(requestedPage);
+      return;
+    }
+
+    setPageInput(String(activePage));
+  }, [activePage, pageInput, setPage]);
+
   const handleFileInput = useCallback(
     (event: ChangeEvent<HTMLInputElement>) => {
       const selectedFile = event.target.files?.[0];
@@ -553,152 +597,248 @@ export function PdfViewer({
 
   return (
     <section className="h-full w-full flex flex-col border-r border-gray-200 bg-gray-50 dark:bg-gray-900 dark:border-gray-700">
-      <header className="h-12 px-3 flex items-center gap-2 border-b border-gray-200 dark:border-gray-700">
-        <strong className="text-sm text-gray-800 dark:text-gray-100">
-          PDF Viewer
-        </strong>
-        <span className="text-xs text-gray-500 dark:text-gray-400 truncate">
-          {fileLabel}
-        </span>
-        {isPickingPdfPoint && (
-          <span className="text-xs text-amber-700 dark:text-amber-300">
-            Pick mode: click a PDF point
+      <header className="min-h-12 px-3 py-2 flex flex-wrap items-center gap-2 border-b border-gray-200 dark:border-gray-700">
+        <div className="min-w-0 flex items-center gap-2">
+          <strong className="shrink-0 text-sm text-gray-800 dark:text-gray-100">
+            PDF Viewer
+          </strong>
+          <span
+            className="truncate text-xs text-gray-500 dark:text-gray-400"
+            title={fileLabel}
+          >
+            {fileLabel}
           </span>
-        )}
-        <div className="ml-auto flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setIsCroppingMode(!isCroppingMode)}
-            className={`px-2 py-1 text-xs border rounded ${isCroppingMode ? 'bg-amber-100 border-amber-300 dark:bg-amber-900 dark:border-amber-700' : 'border-gray-300 dark:border-gray-600'}`}
-          >
-            {isExtracting
-              ? 'Extracting...'
-              : isCroppingMode
-                ? 'Cancel Crop'
-                : 'Crop Legend'}
-          </button>
-
-          <button
-            type="button"
-            onClick={handleExtractShapes}
-            disabled={
-              !extractedLegend ||
-              extractedLegend.zones.length === 0 ||
-              isExtractingShapes
-            }
-            className="px-2 py-1 text-xs font-medium rounded bg-blue-100 border border-blue-300 dark:bg-blue-900 dark:border-blue-700 hover:bg-blue-200 dark:hover:bg-blue-800 text-blue-800 dark:text-blue-200 disabled:opacity-50"
-            title={
-              !extractedLegend || extractedLegend.zones.length === 0
-                ? 'Extract legend first'
-                : 'Extract zoning shapes based on legend'
-            }
-          >
-            {isExtractingShapes ? 'Extracting Shapes...' : 'Extract Shapes'}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setZoomFactor(null)}
-            className="px-2 py-1 text-xs border rounded border-gray-300 dark:border-gray-600"
-            title="Reset to fit"
-          >
-            Fit
-          </button>
-          <button
-            type="button"
-            onClick={() =>
-              setZoomFactor((prev) =>
-                Math.min(8, (prev ?? fitScaleRef.current) * 1.25)
-              )
-            }
-            className="px-1.5 py-1 text-xs border rounded border-gray-300 dark:border-gray-600 font-bold"
-            aria-label="Zoom in"
-          >
-            +
-          </button>
-          <span className="text-xs text-gray-600 dark:text-gray-400 min-w-[3.5rem] text-center tabular-nums">
-            {zoomFactor !== null ? `${Math.round(zoomFactor * 100)}%` : 'Fit'}
-          </span>
-          <button
-            type="button"
-            onClick={() =>
-              setZoomFactor((prev) =>
-                Math.max(0.25, (prev ?? fitScaleRef.current) / 1.25)
-              )
-            }
-            className="px-1.5 py-1 text-xs border rounded border-gray-300 dark:border-gray-600 font-bold"
-            aria-label="Zoom out"
-          >
-            −
-          </button>
-          <button
-            type="button"
-            onClick={() => setPage(activePage - 1)}
-            disabled={!canGoPrev}
-            className="px-2 py-1 text-xs border rounded border-gray-300 disabled:opacity-50 dark:border-gray-600"
-          >
-            Prev
-          </button>
-          <span className="text-xs text-gray-700 dark:text-gray-300">
-            {pageCount === 0 ? '0 / 0' : `${activePage} / ${pageCount}`}
-          </span>
-          <button
-            type="button"
-            onClick={() => setPage(activePage + 1)}
-            disabled={!canGoNext}
-            className="px-2 py-1 text-xs border rounded border-gray-300 disabled:opacity-50 dark:border-gray-600"
-          >
-            Next
-          </button>
+        </div>
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+          {file && (
+            <button
+              type="button"
+              onClick={handleUploadClick}
+              className="px-2 py-1 text-xs font-medium text-gray-700 border border-gray-300 rounded hover:bg-white dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800"
+            >
+              Replace PDF
+            </button>
+          )}
+          {file && (
+            <div
+              className="flex items-center overflow-hidden border border-gray-300 rounded dark:border-gray-600"
+              aria-label="Zoom controls"
+            >
+              <button
+                type="button"
+                onClick={() =>
+                  setZoomFactor((previousZoom) =>
+                    Math.max(0.25, (previousZoom ?? fitScaleRef.current) / 1.25)
+                  )
+                }
+                className="grid w-7 h-7 place-items-center text-gray-700 hover:bg-white dark:text-gray-200 dark:hover:bg-gray-800"
+                aria-label="Zoom out"
+                title="Zoom out"
+              >
+                <MinusIcon aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setZoomFactor(null)}
+                className="grid w-7 h-7 place-items-center border-x border-gray-300 text-gray-700 hover:bg-white dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800"
+                aria-label="Fit page to panel"
+                title="Fit page to panel"
+              >
+                <ResetIcon aria-hidden="true" />
+              </button>
+              <span
+                className="w-12 text-xs text-center tabular-nums text-gray-600 dark:text-gray-400"
+                aria-live="polite"
+              >
+                {zoomFactor !== null ? `${Math.round(zoomFactor * 100)}%` : 'Fit'}
+              </span>
+              <button
+                type="button"
+                onClick={() =>
+                  setZoomFactor((previousZoom) =>
+                    Math.min(8, (previousZoom ?? fitScaleRef.current) * 1.25)
+                  )
+                }
+                className="grid w-7 h-7 place-items-center border-l border-gray-300 text-gray-700 hover:bg-white dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800"
+                aria-label="Zoom in"
+                title="Zoom in"
+              >
+                <PlusIcon aria-hidden="true" />
+              </button>
+            </div>
+          )}
+          {file && (
+            <div
+              className="flex items-center overflow-hidden border border-gray-300 rounded dark:border-gray-600"
+              aria-label="Page controls"
+            >
+              <button
+                type="button"
+                onClick={() => setPage(activePage - 1)}
+                disabled={!canGoPrev}
+                className="grid w-7 h-7 place-items-center text-gray-700 hover:bg-white disabled:cursor-not-allowed disabled:opacity-50 dark:text-gray-200 dark:hover:bg-gray-800"
+                aria-label="Previous page"
+                title="Previous page"
+              >
+                <ChevronLeftIcon aria-hidden="true" />
+              </button>
+              <label className="sr-only" htmlFor="pdf-page-number">
+                Current page
+              </label>
+              <input
+                id="pdf-page-number"
+                type="number"
+                min="1"
+                max={Math.max(pageCount, 1)}
+                value={pageInput}
+                onChange={(event) => setPageInput(event.target.value)}
+                onBlur={commitPageInput}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.currentTarget.blur();
+                  }
+                }}
+                disabled={pageCount === 0}
+                className="w-9 h-7 border-x border-gray-300 bg-transparent text-center text-xs tabular-nums text-gray-700 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 disabled:opacity-50 dark:border-gray-600 dark:text-gray-200"
+              />
+              <span className="w-8 text-xs text-center tabular-nums text-gray-600 dark:text-gray-400">
+                / {pageCount}
+              </span>
+              <button
+                type="button"
+                onClick={() => setPage(activePage + 1)}
+                disabled={!canGoNext}
+                className="grid w-7 h-7 place-items-center border-l border-gray-300 text-gray-700 hover:bg-white disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800"
+                aria-label="Next page"
+                title="Next page"
+              >
+                <ChevronRightIcon aria-hidden="true" />
+              </button>
+            </div>
+          )}
         </div>
       </header>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="application/pdf"
+        onChange={handleFileInput}
+        className="hidden"
+      />
+
+      {(isCroppingMode || isPickingPdfPoint) && (
+        <div
+          className="flex items-center justify-between gap-3 border-b border-amber-200 bg-amber-50 px-3 py-2 text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100"
+          role="status"
+          aria-live="polite"
+        >
+          <div>
+            <p className="text-xs font-semibold">
+              {isCroppingMode
+                ? isExtracting
+                  ? 'Extracting legend'
+                  : 'Legend crop active'
+                : 'Control point placement active'}
+            </p>
+            <p className="text-xs">
+              {isCroppingMode
+                ? isExtracting
+                  ? 'Reading the selected legend area.'
+                  : 'Drag a box around the zoning legend on this page.'
+                : 'Click the matching location on this PDF page, then select it on the map.'}
+            </p>
+          </div>
+          {isCroppingMode && !isExtracting && (
+            <button
+              type="button"
+              onClick={cancelLegendCrop}
+              className="shrink-0 px-2 py-1 text-xs font-medium border border-amber-400 rounded hover:bg-amber-100 dark:border-amber-700 dark:hover:bg-amber-900"
+            >
+              Cancel crop
+            </button>
+          )}
+        </div>
+      )}
 
       {file && (
-        <div
-          className={
-            canRunSpatialExtraction
-              ? 'px-3 py-2 border-b border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/40'
-              : 'px-3 py-2 border-b border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40'
-          }
-        >
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-xs font-semibold tracking-wide uppercase text-gray-700 dark:text-gray-200">
-                Spatial Extraction (Step 4)
-              </p>
-              <p className="text-xs text-gray-700 dark:text-gray-200">
-                Control points: {totalControlPointCount} total,{' '}
-                {confirmedControlPointCount} confirmed | Legend zones:{' '}
-                {hasLegend ? (extractedLegend?.zones.length ?? 0) : 0}
-              </p>
-              {!hasLegend && (
-                <p className="text-xs text-amber-700 dark:text-amber-300">
-                  First use Crop Legend, then run Extract Shapes.
+        <section className="border-b border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+          <button
+            type="button"
+            onClick={() => setIsWorkflowOpen((open) => !open)}
+            className="flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-gray-50 dark:hover:bg-gray-800"
+            aria-expanded={isWorkflowOpen}
+            aria-controls="pdf-extraction-workflow"
+          >
+            <span className="text-xs font-semibold text-gray-800 dark:text-gray-100">
+              Legend &amp; shape extraction
+            </span>
+            <span className="ml-auto text-xs tabular-nums text-gray-500 dark:text-gray-400">
+              {confirmedControlPointCount}/3 GCPs ·{' '}
+              {hasLegend ? extractedLegend?.zones.length ?? 0 : 0} zones
+            </span>
+            {isWorkflowOpen ? (
+              <ChevronUpIcon aria-hidden="true" />
+            ) : (
+              <ChevronDownIcon aria-hidden="true" />
+            )}
+          </button>
+          {isWorkflowOpen && (
+            <div
+              id="pdf-extraction-workflow"
+              className="space-y-3 border-t border-gray-200 px-3 py-3 dark:border-gray-700"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-medium text-gray-800 dark:text-gray-100">
+                    Capture the zoning legend
+                  </p>
+                  <p className="text-xs text-gray-600 dark:text-gray-300">
+                    Select only the legend rows used for zoning areas.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={startLegendCrop}
+                  disabled={isCroppingMode || isExtracting}
+                  className="px-2.5 py-1.5 text-xs font-medium text-gray-800 border border-gray-300 rounded hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:text-gray-100 dark:hover:bg-gray-800"
+                >
+                  {isExtracting ? 'Extracting legend...' : 'Crop legend'}
+                </button>
+              </div>
+
+              {legendCropMessage && (
+                <p
+                  className="text-xs text-gray-700 dark:text-gray-200"
+                  role="status"
+                >
+                  {legendCropMessage}
                 </p>
               )}
+
               {hasLegend && extractedLegend && (
-                <div className="mt-2 text-xs">
-                  <p className="font-medium text-gray-700 dark:text-gray-200 mb-1">
-                    Recognized Legend Filters (remove non-zoning features):
+                <div>
+                  <p className="mb-1 text-xs font-medium text-gray-800 dark:text-gray-100">
+                    Legend filters
                   </p>
-                  <ul className="flex flex-wrap gap-1.5 mt-1">
-                    {extractedLegend.zones.map((zone, idx) => (
+                  <ul className="flex flex-wrap gap-1.5">
+                    {extractedLegend.zones.map((zone, index) => (
                       <li
-                        key={idx}
-                        className="flex items-center gap-1.5 px-2 py-0.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800"
+                        key={index}
+                        className="flex items-center gap-1.5 border border-gray-300 bg-gray-50 px-2 py-1 text-xs dark:border-gray-600 dark:bg-gray-800"
                       >
                         <span
                           className="w-2.5 h-2.5 rounded-full border border-gray-400"
                           style={{ backgroundColor: zone.color }}
                         />
-                        <span className="text-gray-700 dark:text-gray-200 font-medium">
+                        <span className="font-medium text-gray-700 dark:text-gray-200">
                           {zone.code || zone.description}
                         </span>
                         <button
                           type="button"
-                          onClick={() => removeLegendItem(idx)}
-                          className="text-gray-400 hover:text-red-600 font-bold ml-1 text-sm leading-none"
-                          title="Do not extract shapes of this color"
+                          onClick={() => removeLegendItem(index)}
+                          className="grid w-4 h-4 place-items-center text-gray-500 hover:text-red-600"
+                          aria-label={`Exclude ${zone.code || zone.description} from shape extraction`}
+                          title="Exclude this legend color from shape extraction"
                         >
                           &times;
                         </button>
@@ -707,53 +847,39 @@ export function PdfViewer({
                   </ul>
                 </div>
               )}
-              {totalControlPointCount >= 3 &&
-                confirmedControlPointCount < 3 && (
-                  <p className="text-xs text-amber-700 dark:text-amber-300">
-                    You have {totalControlPointCount} points, but only{' '}
-                    {confirmedControlPointCount} confirmed. Check the Confirmed
-                    boxes in Control Points.
+
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 pt-3 dark:border-gray-700">
+                <div>
+                  <p className="text-xs font-medium text-gray-800 dark:text-gray-100">
+                    Extract zoning shapes
                   </p>
-                )}
-              {totalControlPointCount < 3 && (
-                <p className="text-xs text-amber-700 dark:text-amber-300">
-                  Add at least {3 - totalControlPointCount} more control point
-                  {3 - totalControlPointCount === 1 ? '' : 's'}.
-                </p>
-              )}
-              {hasLegend && confirmedControlPointCount < 3 && (
-                <p className="text-xs text-amber-700 dark:text-amber-300">
-                  Confirm at least 3 control points to enable extraction.
-                </p>
-              )}
-              {canRunSpatialExtraction && (
-                <p className="text-xs text-emerald-700 dark:text-emerald-300">
-                  Ready: click Extract Shapes to generate map polygons.
-                </p>
-              )}
+                  <p
+                    className={
+                      canRunSpatialExtraction
+                        ? 'text-xs text-emerald-700 dark:text-emerald-300'
+                        : 'text-xs text-amber-700 dark:text-amber-300'
+                    }
+                  >
+                    {canRunSpatialExtraction
+                      ? 'Ready to create map polygons from the selected legend.'
+                      : extractionBlockedReason}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleExtractShapes}
+                  disabled={!canRunSpatialExtraction}
+                  className="px-3 py-1.5 text-xs font-semibold text-blue-800 bg-blue-100 border border-blue-300 rounded hover:bg-blue-200 disabled:cursor-not-allowed disabled:opacity-50 dark:border-blue-700 dark:bg-blue-900 dark:text-blue-200 dark:hover:bg-blue-800"
+                  title={extractionBlockedReason}
+                >
+                  {isExtractingShapes
+                    ? 'Extracting shapes...'
+                    : 'Extract shapes'}
+                </button>
+              </div>
             </div>
-            <button
-              type="button"
-              onClick={handleExtractShapes}
-              disabled={!canRunSpatialExtraction}
-              className="px-3 py-1.5 text-xs font-semibold rounded bg-blue-100 border border-blue-300 dark:bg-blue-900 dark:border-blue-700 hover:bg-blue-200 dark:hover:bg-blue-800 text-blue-800 dark:text-blue-200 disabled:opacity-50"
-              title={
-                canRunSpatialExtraction
-                  ? 'Extract zoning shapes based on legend and confirmed control points'
-                  : `Blocked: ${hasLegend ? 'legend ready' : 'legend missing'}, ${confirmedControlPointCount}/3 confirmed points`
-              }
-            >
-              {isExtractingShapes
-                ? 'Extracting Shapes...'
-                : 'Run Spatial Extraction'}
-            </button>
-          </div>
-          {legendCropMessage && (
-            <p className="mt-1 text-xs text-gray-700 dark:text-gray-200">
-              {legendCropMessage}
-            </p>
           )}
-        </div>
+        </section>
       )}
 
       {!file ? (
@@ -773,13 +899,6 @@ export function PdfViewer({
             >
               Open PDF
             </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="application/pdf"
-              onChange={handleFileInput}
-              className="hidden"
-            />
           </div>
         </div>
       ) : (
