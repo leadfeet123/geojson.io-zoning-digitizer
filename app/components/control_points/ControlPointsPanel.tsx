@@ -7,7 +7,15 @@ import { MapContext } from 'app/context/map_context';
 import mapboxgl from 'mapbox-gl';
 import { useAtom } from 'jotai';
 import { nanoid } from 'nanoid';
-import { useContext, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  type KeyboardEvent as ReactKeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react';
 import {
   solveTransform,
   type TransformControlPoint
@@ -22,6 +30,11 @@ import {
   type ControlPointPair
 } from 'state/control_points';
 import { activePdfPageAtom } from 'state/digitizer';
+
+const COLLAPSED_PANEL_HEIGHT = 40;
+const DEFAULT_EXPANDED_PANEL_HEIGHT = 280;
+const MIN_EXPANDED_PANEL_HEIGHT = 180;
+const MIN_PDF_VIEWER_HEIGHT = 200;
 
 function formatCoord(value: number): string {
   return value.toFixed(5);
@@ -95,7 +108,94 @@ export function ControlPointsPanel({
     pdfSuggestionRelocatingIdAtom
   );
   const [collapsed, setCollapsed] = useState(false);
+  const [expandedPanelHeight, setExpandedPanelHeight] = useState(
+    DEFAULT_EXPANDED_PANEL_HEIGHT
+  );
+  const [isResizing, setIsResizing] = useState(false);
+  const panelRef = useRef<HTMLElement | null>(null);
+  const resizeStartRef = useRef<{
+    pointerId: number;
+    clientY: number;
+    height: number;
+  } | null>(null);
   const priorCursorRef = useRef<string>('');
+
+  function maximumExpandedPanelHeight(): number {
+    const parentHeight = panelRef.current?.parentElement?.clientHeight ?? 0;
+    return Math.max(
+      MIN_EXPANDED_PANEL_HEIGHT,
+      parentHeight - MIN_PDF_VIEWER_HEIGHT
+    );
+  }
+
+  function constrainPanelHeight(height: number): number {
+    return Math.min(
+      Math.max(height, MIN_EXPANDED_PANEL_HEIGHT),
+      maximumExpandedPanelHeight()
+    );
+  }
+
+  function handleResizePointerDown(
+    event: ReactPointerEvent<HTMLDivElement>
+  ): void {
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    resizeStartRef.current = {
+      pointerId: event.pointerId,
+      clientY: event.clientY,
+      height: expandedPanelHeight
+    };
+    setIsResizing(true);
+  }
+
+  function handleResizePointerMove(
+    event: ReactPointerEvent<HTMLDivElement>
+  ): void {
+    const resizeStart = resizeStartRef.current;
+    if (!resizeStart || resizeStart.pointerId !== event.pointerId) {
+      return;
+    }
+
+    setExpandedPanelHeight(
+      constrainPanelHeight(
+        resizeStart.height + resizeStart.clientY - event.clientY
+      )
+    );
+  }
+
+  function handleResizePointerEnd(
+    event: ReactPointerEvent<HTMLDivElement>
+  ): void {
+    if (resizeStartRef.current?.pointerId !== event.pointerId) {
+      return;
+    }
+
+    resizeStartRef.current = null;
+    setIsResizing(false);
+  }
+
+  function handleResizeKeyDown(
+    event: ReactKeyboardEvent<HTMLDivElement>
+  ): void {
+    let nextHeight: number | null = null;
+
+    if (event.key === 'ArrowUp') {
+      nextHeight = expandedPanelHeight + 24;
+    } else if (event.key === 'ArrowDown') {
+      nextHeight = expandedPanelHeight - 24;
+    } else if (event.key === 'Home') {
+      nextHeight = MIN_EXPANDED_PANEL_HEIGHT;
+    } else if (event.key === 'End') {
+      nextHeight = maximumExpandedPanelHeight();
+    }
+
+    if (nextHeight === null) {
+      return;
+    }
+
+    event.preventDefault();
+    setExpandedPanelHeight(constrainPanelHeight(nextHeight));
+  }
 
   // Wire up the crosshair cursor and single-click handler when a relocation is pending.
   useEffect(() => {
@@ -374,8 +474,33 @@ export function ControlPointsPanel({
 
   return (
     <section
-      className={`${collapsed ? 'h-10' : 'h-[280px]'} border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 overflow-hidden flex flex-col transition-[height] duration-200`}
+      ref={panelRef}
+      className={`shrink-0 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 overflow-hidden flex flex-col ${isResizing ? '' : 'transition-[height] duration-200'}`}
+      style={{
+        height: `${collapsed ? COLLAPSED_PANEL_HEIGHT : expandedPanelHeight}px`
+      }}
     >
+      {!collapsed && (
+        <div
+          role="separator"
+          aria-label="Resize control points panel"
+          aria-orientation="horizontal"
+          aria-valuemin={MIN_EXPANDED_PANEL_HEIGHT}
+          aria-valuemax={maximumExpandedPanelHeight()}
+          aria-valuenow={Math.round(expandedPanelHeight)}
+          tabIndex={0}
+          title="Drag to resize control points panel"
+          onPointerDown={handleResizePointerDown}
+          onPointerMove={handleResizePointerMove}
+          onPointerUp={handleResizePointerEnd}
+          onPointerCancel={handleResizePointerEnd}
+          onLostPointerCapture={handleResizePointerEnd}
+          onKeyDown={handleResizeKeyDown}
+          className={`group h-2 shrink-0 cursor-row-resize touch-none select-none border-b border-gray-200 dark:border-gray-700 ${isResizing ? 'bg-blue-100 dark:bg-blue-950/60' : 'hover:bg-gray-100 dark:hover:bg-gray-800'}`}
+        >
+          <span className="block mx-auto mt-[3px] h-px w-10 bg-gray-300 dark:bg-gray-600 group-hover:bg-blue-500" />
+        </div>
+      )}
       <header className="px-3 py-2 border-b border-gray-200 dark:border-gray-700 flex items-center gap-2">
         <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
           Control Points
