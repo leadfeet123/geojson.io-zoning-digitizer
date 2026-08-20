@@ -28,6 +28,7 @@ import Notifications from 'app/components/notifications';
 import { SidePanel, BottomPanel } from 'app/components/panels';
 import {
   BottomResizer,
+  DigitizerSplitResizer,
   Resizer,
   useBigScreen,
   useWindowResizeSplits
@@ -54,7 +55,9 @@ import { UrlAPI } from './url_api';
 import {
   activePdfAtom,
   activePdfPageAtom,
-  digitizerModeAtom
+  digitizerModeAtom,
+  digitizerPdfPaneWidthAtom,
+  digitizerWorkspaceViewAtom
 } from 'state/digitizer';
 import {
   activeControlPointIdAtom,
@@ -119,6 +122,9 @@ export function GeojsonIO() {
   const splits = useAtomValue(splitsAtom);
   const [activePdf, setActivePdf] = useAtom(activePdfAtom);
   const [activePdfPage, setActivePdfPage] = useAtom(activePdfPageAtom);
+  const [digitizerPdfPaneWidth, setDigitizerPdfPaneWidth] = useAtom(
+    digitizerPdfPaneWidthAtom
+  );
   const [controlPointPlacementMode, setControlPointPlacementMode] = useAtom(
     controlPointPlacementModeAtom
   );
@@ -128,8 +134,13 @@ export function GeojsonIO() {
   );
   const [pendingPdfPoint, setPendingPdfPoint] = useAtom(pendingPdfPointAtom);
   const digitizerMode = useAtomValue(digitizerModeAtom);
+  const [digitizerWorkspaceView, setDigitizerWorkspaceView] = useAtom(
+    digitizerWorkspaceViewAtom
+  );
   const [styleOptions, setStyleOptions] = useAtom(styleOptionsAtom);
   const isBigScreen = useBigScreen();
+  const isPdfWorkspaceMaximized =
+    digitizerMode && digitizerWorkspaceView === 'pdf';
   const controlPointMarkersRef = useRef<Map<string, mapboxgl.Marker>>(
     new globalThis.Map()
   );
@@ -174,6 +185,12 @@ export function GeojsonIO() {
     },
     [controlPoints, map, setActiveControlPointId]
   );
+
+  useEffect(() => {
+    if (!digitizerMode) {
+      setDigitizerWorkspaceView('split');
+    }
+  }, [digitizerMode, setDigitizerWorkspaceView]);
 
   useEffect(() => {
     if (digitizerMode) {
@@ -301,8 +318,10 @@ export function GeojsonIO() {
             <div>
               <MenuBar />
               <div
-                className="flex flex-row items-center justify-start overflow-x-auto sm:overflow-visible
-          border-t border-gray-200 dark:border-gray-900 px-2 h-12"
+                className={clsx(
+                  'flex flex-row items-center justify-start overflow-x-auto sm:overflow-visible border-t border-gray-200 dark:border-gray-900 px-2 h-12',
+                  isPdfWorkspaceMaximized && 'hidden'
+                )}
               >
                 <Modes replaceGeometryForId={null} />
                 <div className="flex-auto" />
@@ -316,10 +335,23 @@ export function GeojsonIO() {
           </ErrorBoundary>
           {digitizerMode ? (
             <div className="flex flex-auto relative border-t border-gray-200 dark:border-gray-900 overflow-hidden">
-              <div className="w-[45%] min-w-[320px] max-w-[720px] flex flex-col">
+              <div
+                className={clsx(
+                  'min-h-0 flex shrink-0 flex-col',
+                  isPdfWorkspaceMaximized
+                    ? 'w-full'
+                    : 'w-[45%] min-w-[320px]'
+                )}
+                style={
+                  !isPdfWorkspaceMaximized && digitizerPdfPaneWidth !== null
+                    ? { width: `${digitizerPdfPaneWidth}px` }
+                    : undefined
+                }
+              >
                 <PdfViewer
                   file={activePdf?.file ?? null}
                   page={activePdfPage}
+                  isMaximized={isPdfWorkspaceMaximized}
                   isPickingPdfPoint={
                     controlPointPlacementMode === 'awaiting_pdf'
                   }
@@ -346,6 +378,11 @@ export function GeojsonIO() {
                     });
                     setActivePdfPage(1);
                   }}
+                  onToggleMaximize={() => {
+                    setDigitizerWorkspaceView((current) =>
+                      current === 'pdf' ? 'split' : 'pdf'
+                    );
+                  }}
                   onPdfCoordinatePick={(coords) => {
                     if (controlPointPlacementMode !== 'awaiting_pdf') {
                       return;
@@ -356,9 +393,24 @@ export function GeojsonIO() {
                   }}
                   onControlPointClick={focusControlPoint}
                 />
-                <ControlPointsPanel onControlPointClick={focusControlPoint} />
+                {!isPdfWorkspaceMaximized && (
+                  <ControlPointsPanel
+                    onControlPointClick={focusControlPoint}
+                  />
+                )}
               </div>
-              <div className="flex-1 flex relative overflow-hidden">
+              {!isPdfWorkspaceMaximized && (
+                <DigitizerSplitResizer
+                  onResize={setDigitizerPdfPaneWidth}
+                />
+              )}
+              <div
+                className={clsx(
+                  'min-w-0 flex-1 flex relative overflow-hidden',
+                  isPdfWorkspaceMaximized && 'hidden'
+                )}
+                aria-hidden={isPdfWorkspaceMaximized}
+              >
                 <LayoutWorkspace
                   digitizerMode={digitizerMode}
                   layout={layout}
@@ -368,7 +420,7 @@ export function GeojsonIO() {
                   setMap={setMap}
                 />
               </div>
-              <ControlPointMapCapture />
+              {!isPdfWorkspaceMaximized && <ControlPointMapCapture />}
             </div>
           ) : (
             <LayoutWorkspace

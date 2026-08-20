@@ -7,6 +7,8 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   ChevronUpIcon,
+  EnterFullScreenIcon,
+  ExitFullScreenIcon,
   MinusIcon,
   PlusIcon,
   ResetIcon
@@ -26,6 +28,7 @@ import type { ControlPointPair } from 'state/control_points';
 interface PdfViewerProps {
   file: File | null;
   page?: number;
+  isMaximized?: boolean;
   isPickingPdfPoint?: boolean;
   pendingPdfPoint?: {
     x: number;
@@ -37,6 +40,7 @@ interface PdfViewerProps {
   onPageChange?: (page: number) => void;
   onPageCountChange?: (pageCount: number) => void;
   onFileSelect?: (file: File) => void;
+  onToggleMaximize?: () => void;
   onControlPointClick?: (controlPointId: string) => void;
   onPdfCoordinatePick?: (coords: {
     x: number;
@@ -51,6 +55,7 @@ interface PdfViewerProps {
 export function PdfViewer({
   file,
   page,
+  isMaximized = false,
   isPickingPdfPoint = false,
   pendingPdfPoint = null,
   controlPoints = [],
@@ -58,6 +63,7 @@ export function PdfViewer({
   onPageChange,
   onPageCountChange,
   onFileSelect,
+  onToggleMaximize,
   onControlPointClick,
   onPdfCoordinatePick
 }: PdfViewerProps) {
@@ -610,6 +616,30 @@ export function PdfViewer({
           </span>
         </div>
         <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+          {onToggleMaximize && (
+            <button
+              type="button"
+              onClick={onToggleMaximize}
+              className="grid w-7 h-7 place-items-center text-gray-700 border border-gray-300 rounded hover:bg-white dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800"
+              aria-label={
+                isMaximized
+                  ? 'Restore split workspace'
+                  : 'Maximize PDF workspace'
+              }
+              aria-pressed={isMaximized}
+              title={
+                isMaximized
+                  ? 'Restore split workspace'
+                  : 'Maximize PDF workspace'
+              }
+            >
+              {isMaximized ? (
+                <ExitFullScreenIcon aria-hidden="true" />
+              ) : (
+                <EnterFullScreenIcon aria-hidden="true" />
+              )}
+            </button>
+          )}
           {file && (
             <button
               type="button"

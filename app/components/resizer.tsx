@@ -13,6 +13,7 @@ import {
   type Splits,
   splitsAtom
 } from 'state/jotai';
+import { clampDigitizerPdfPaneWidth } from 'state/digitizer';
 
 const MIN_MAP_WIDTH = 80;
 
@@ -198,6 +199,53 @@ export const Resizer = memo(function ResizerInner({ side }: { side: Side }) {
       </button>
       {showPanel ? null : <PanelToggle side={side} />}
     </>
+  );
+});
+
+export const DigitizerSplitResizer = memo(function DigitizerSplitResizer({
+  onResize
+}: {
+  onResize: (width: number) => void;
+}) {
+  const resizerRef = useRef<HTMLButtonElement | null>(null);
+  const rawWidth = useRef<number | null>(null);
+
+  const { moveProps } = useMove({
+    onMoveStart() {
+      rawWidth.current =
+        resizerRef.current?.previousElementSibling?.getBoundingClientRect()
+          .width ?? null;
+    },
+    onMove(event) {
+      if (rawWidth.current === null) return;
+
+      const workspace = resizerRef.current?.parentElement;
+      if (!workspace) return;
+
+      rawWidth.current = clampDigitizerPdfPaneWidth(
+        rawWidth.current + Math.round(event.deltaX),
+        workspace.clientWidth
+      );
+      onResize(rawWidth.current);
+    },
+    onMoveEnd() {
+      rawWidth.current = null;
+    }
+  });
+
+  return (
+    <button
+      {...moveProps}
+      ref={resizerRef}
+      type="button"
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="Resize PDF and map workspaces"
+      tabIndex={0}
+      className="relative z-max flex w-2 shrink-0 touch-none cursor-col-resize items-center justify-center bg-transparent hover:bg-mb-blue-700 focus-visible:bg-mb-blue-700"
+    >
+      <span className="h-16 w-px bg-gray-300 dark:bg-gray-600" />
+    </button>
   );
 });
 
