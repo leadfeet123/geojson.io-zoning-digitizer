@@ -94,6 +94,7 @@ export function ControlPointsPanel({
   const [pdfSuggestionRelocatingId, setPdfSuggestionRelocatingId] = useAtom(
     pdfSuggestionRelocatingIdAtom
   );
+  const [collapsed, setCollapsed] = useState(false);
   const priorCursorRef = useRef<string>('');
 
   // Wire up the crosshair cursor and single-click handler when a relocation is pending.
@@ -372,7 +373,9 @@ export function ControlPointsPanel({
   }
 
   return (
-    <section className="h-[280px] border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 overflow-hidden flex flex-col">
+    <section
+      className={`${collapsed ? 'h-10' : 'h-[280px]'} border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 overflow-hidden flex flex-col transition-[height] duration-200`}
+    >
       <header className="px-3 py-2 border-b border-gray-200 dark:border-gray-700 flex items-center gap-2">
         <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
           Control Points
@@ -393,6 +396,18 @@ export function ControlPointsPanel({
             pdfSuggestionRelocatingId !== null
           )}
         </span>
+        <button
+          type="button"
+          onClick={() => setCollapsed((c) => !c)}
+          className="ml-2 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-xs leading-none px-1"
+          aria-label={
+            collapsed
+              ? 'Expand control points panel'
+              : 'Collapse control points panel'
+          }
+        >
+          {collapsed ? '▲' : '▼'}
+        </button>
       </header>
 
       <div className="px-3 py-2 flex items-center gap-2 border-b border-gray-200 dark:border-gray-700">

@@ -14,8 +14,6 @@ import { newFeatureId as generateId } from '../../lib/id';
 import type { DigitizerFeature } from 'types/digitizer';
 import type { ControlPointPair } from 'state/control_points';
 
-type ZoomMode = 'fit' | '100%';
-
 interface PdfViewerProps {
   file: File | null;
   page?: number;
@@ -64,7 +62,17 @@ export function PdfViewer({
   const [error, setError] = useState<string | null>(null);
   const [pageCount, setPageCount] = useState(0);
   const [internalPage, setInternalPage] = useState(1);
-  const [zoomMode, setZoomMode] = useState<ZoomMode>('fit');
+  /** null = fit to container width; number = explicit scale factor */
+  const [zoomFactor, setZoomFactor] = useState<number | null>(null);
+  const fitScaleRef = useRef(1);
+  const panRef = useRef<{
+    startX: number;
+    startY: number;
+    scrollX: number;
+    scrollY: number;
+  } | null>(null);
+  const panMovedRef = useRef(false);
+  const [isDragging, setIsDragging] = useState(false);
   const [docState, setDocState] = useState<PDFDocumentProxy | null>(null);
   const [renderedScale, setRenderedScale] = useState(1);
   const [renderedSize, setRenderedSize] = useState({ width: 0, height: 0 });
@@ -205,10 +213,9 @@ export function PdfViewer({
           containerRef.current.clientWidth - 24,
           320
         );
-        const scale =
-          zoomMode === 'fit'
-            ? containerWidth / Math.max(unscaledViewport.width, 1)
-            : 1;
+        const fitScale = containerWidth / Math.max(unscaledViewport.width, 1);
+        fitScaleRef.current = fitScale;
+        const scale = zoomFactor ?? fitScale;
 
         const viewport = currentPage.getViewport({ scale });
         const canvas = canvasRef.current;
@@ -256,7 +263,23 @@ export function PdfViewer({
       cancelled = true;
       renderTask?.cancel();
     };
-  }, [activePage, docState, pageCount, zoomMode]);
+  }, [activePage, docState, pageCount, zoomFactor]);
+
+  // Attach wheel zoom to the scroll container (must be non-passive to preventDefault).
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || !file) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const step = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+      setZoomFactor((prev) => {
+        const current = prev ?? fitScaleRef.current;
+        return Math.min(8, Math.max(0.25, current * step));
+      });
+    };
+    container.addEventListener('wheel', onWheel, { passive: false });
+    return () => container.removeEventListener('wheel', onWheel);
+  }, [file]);
 
   const fileLabel = useMemo(() => {
     return file?.name ?? 'No PDF selected';
@@ -277,20 +300,41 @@ export function PdfViewer({
 
   const handleCanvasMouseDown = useCallback(
     (event: React.MouseEvent<HTMLCanvasElement>) => {
-      if (!isCroppingMode) return;
-      const canvas = event.currentTarget;
-      const rect = canvas.getBoundingClientRect();
-      const x = event.clientX - rect.left;
-      const y = event.clientY - rect.top;
-      setCropStart({ x, y });
-      setCropEnd({ x, y });
-      setIsDrawingCrop(true);
+      if (isCroppingMode) {
+        const canvas = event.currentTarget;
+        const rect = canvas.getBoundingClientRect();
+        const x = event.clientX - rect.left;
+        const y = event.clientY - rect.top;
+        setCropStart({ x, y });
+        setCropEnd({ x, y });
+        setIsDrawingCrop(true);
+        return;
+      }
+      // Begin grab-to-pan
+      panRef.current = {
+        startX: event.clientX,
+        startY: event.clientY,
+        scrollX: containerRef.current?.scrollLeft ?? 0,
+        scrollY: containerRef.current?.scrollTop ?? 0
+      };
+      panMovedRef.current = false;
+      setIsDragging(true);
     },
     [isCroppingMode]
   );
 
   const handleCanvasMouseMove = useCallback(
     (event: React.MouseEvent<HTMLCanvasElement>) => {
+      if (panRef.current && !isCroppingMode) {
+        const dx = event.clientX - panRef.current.startX;
+        const dy = event.clientY - panRef.current.startY;
+        if (Math.abs(dx) + Math.abs(dy) > 4) panMovedRef.current = true;
+        if (containerRef.current) {
+          containerRef.current.scrollLeft = panRef.current.scrollX - dx;
+          containerRef.current.scrollTop = panRef.current.scrollY - dy;
+        }
+        return;
+      }
       if (!isDrawingCrop || !cropStart) return;
       const canvas = event.currentTarget;
       const rect = canvas.getBoundingClientRect();
@@ -303,6 +347,11 @@ export function PdfViewer({
 
   const handleCanvasMouseUp = useCallback(
     async (event: React.MouseEvent<HTMLCanvasElement>) => {
+      if (panRef.current) {
+        panRef.current = null;
+        setIsDragging(false);
+        return;
+      }
       if (!isDrawingCrop || !cropStart || !cropEnd) return;
       setIsDrawingCrop(false);
 
@@ -479,6 +528,10 @@ export function PdfViewer({
 
   const handleCanvasClick = useCallback(
     (event: MouseEvent<HTMLCanvasElement>) => {
+      if (panMovedRef.current) {
+        panMovedRef.current = false;
+        return;
+      }
       if (isCroppingMode || isDrawingCrop) {
         return;
       }
@@ -545,17 +598,38 @@ export function PdfViewer({
 
           <button
             type="button"
-            onClick={() => setZoomMode('fit')}
+            onClick={() => setZoomFactor(null)}
             className="px-2 py-1 text-xs border rounded border-gray-300 dark:border-gray-600"
+            title="Reset to fit"
           >
             Fit
           </button>
           <button
             type="button"
-            onClick={() => setZoomMode('100%')}
-            className="px-2 py-1 text-xs border rounded border-gray-300 dark:border-gray-600"
+            onClick={() =>
+              setZoomFactor((prev) =>
+                Math.min(8, (prev ?? fitScaleRef.current) * 1.25)
+              )
+            }
+            className="px-1.5 py-1 text-xs border rounded border-gray-300 dark:border-gray-600 font-bold"
+            aria-label="Zoom in"
           >
-            100%
+            +
+          </button>
+          <span className="text-xs text-gray-600 dark:text-gray-400 min-w-[3.5rem] text-center tabular-nums">
+            {zoomFactor !== null ? `${Math.round(zoomFactor * 100)}%` : 'Fit'}
+          </span>
+          <button
+            type="button"
+            onClick={() =>
+              setZoomFactor((prev) =>
+                Math.max(0.25, (prev ?? fitScaleRef.current) / 1.25)
+              )
+            }
+            className="px-1.5 py-1 text-xs border rounded border-gray-300 dark:border-gray-600 font-bold"
+            aria-label="Zoom out"
+          >
+            −
           </button>
           <button
             type="button"
@@ -735,7 +809,9 @@ export function PdfViewer({
                   ? 'mx-auto bg-white shadow-sm cursor-crosshair ring-2 ring-amber-300'
                   : isPickingPdfPoint
                     ? 'mx-auto bg-white shadow-sm cursor-crosshair ring-2 ring-amber-300'
-                    : 'mx-auto bg-white shadow-sm'
+                    : isDragging
+                      ? 'mx-auto bg-white shadow-sm cursor-grabbing select-none'
+                      : 'mx-auto bg-white shadow-sm cursor-grab'
               }
               aria-label="Rendered PDF page"
             />
