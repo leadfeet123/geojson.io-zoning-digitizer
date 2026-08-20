@@ -53,3 +53,9 @@ export type RelocatingTarget =
   | { type: 'point'; id: string };
 
 export const relocatingTargetAtom = atom<RelocatingTarget | null>(null);
+
+/**
+ * When non-null, the next PDF click sets the GCP location for this suggestion (by ID)
+ * instead of starting a new control point pair.
+ */
+export const pdfSuggestionRelocatingIdAtom = atom<string | null>(null);

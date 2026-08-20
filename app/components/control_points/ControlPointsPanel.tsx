@@ -17,6 +17,7 @@ import {
   controlPointPlacementModeAtom,
   controlPointsAtom,
   pendingPdfPointAtom,
+  pdfSuggestionRelocatingIdAtom,
   relocatingTargetAtom,
   type ControlPointPair
 } from 'state/control_points';
@@ -30,7 +31,12 @@ function formatPixel(value: number): string {
   return value.toFixed(1);
 }
 
-function statusText(mode: string, relocating: boolean): string {
+function statusText(
+  mode: string,
+  relocating: boolean,
+  relocatingPdf: boolean
+): string {
+  if (relocatingPdf) return 'Click the PDF to set this GCP location';
   if (relocating) return 'Click the map to reposition this point';
   if (mode === 'awaiting_pdf') return 'Click a point on the PDF panel';
   if (mode === 'awaiting_map') return 'Now click the matching point on the map';
@@ -85,6 +91,9 @@ export function ControlPointsPanel({
   const [showSuggestions, setShowSuggestions] = useState(false);
   // Shared atom — also read by ControlPointMapCapture to suppress new-point creation.
   const [relocatingTarget, setRelocatingTarget] = useAtom(relocatingTargetAtom);
+  const [pdfSuggestionRelocatingId, setPdfSuggestionRelocatingId] = useAtom(
+    pdfSuggestionRelocatingIdAtom
+  );
   const priorCursorRef = useRef<string>('');
 
   // Wire up the crosshair cursor and single-click handler when a relocation is pending.
@@ -120,6 +129,28 @@ export function ControlPointsPanel({
       mapInstance.getCanvas().style.cursor = priorCursorRef.current;
     };
   }, [map, relocatingTarget, setControlPoints]);
+
+  // When a PDF point is picked while targeting a suggestion, create the GCP immediately.
+  useEffect(() => {
+    if (!pendingPdfPoint || !pdfSuggestionRelocatingId) return;
+    const target = suggestions.find((s) => s.id === pdfSuggestionRelocatingId);
+    if (target) {
+      setControlPoints((current) => [
+        ...current,
+        {
+          id: nanoid(10),
+          pdf: pendingPdfPoint,
+          map: target.map,
+          confirmed: false
+        }
+      ]);
+      setSuggestions((prev) => prev.filter((s) => s.id !== target.id));
+    }
+    setPdfSuggestionRelocatingId(null);
+    setPendingPdfPoint(null);
+    setPlacementMode('idle');
+  }, [pendingPdfPoint, pdfSuggestionRelocatingId, suggestions]);
+
   const sortedSuggestions = useMemo(
     () => [...suggestions].sort((a, b) => b.confidence - a.confidence),
     [suggestions]
@@ -232,6 +263,7 @@ export function ControlPointsPanel({
   function cancelPlacement(): void {
     setPlacementMode('idle');
     setPendingPdfPoint(null);
+    setPdfSuggestionRelocatingId(null);
   }
 
   function startPlacement(): void {
@@ -286,7 +318,7 @@ export function ControlPointsPanel({
           imageHeight
         });
 
-      setSuggestions(nextSuggestions.slice(0, 1));
+      setSuggestions(nextSuggestions);
     } catch (error) {
       setSuggestionError(
         error instanceof Error
@@ -350,12 +382,16 @@ export function ControlPointsPanel({
         </span>
         <span
           className={`ml-auto text-xs ${
-            relocatingTarget
+            relocatingTarget || pdfSuggestionRelocatingId
               ? 'font-medium text-blue-700 dark:text-blue-300'
               : 'text-gray-600 dark:text-gray-300'
           }`}
         >
-          {statusText(placementMode, relocatingTarget !== null)}
+          {statusText(
+            placementMode,
+            relocatingTarget !== null,
+            pdfSuggestionRelocatingId !== null
+          )}
         </span>
       </header>
 
@@ -419,7 +455,7 @@ export function ControlPointsPanel({
                 disabled={isSuggesting || !map}
                 className="px-2 py-1 text-[10px] rounded border border-gray-300 dark:border-gray-600 disabled:opacity-50"
               >
-                {isSuggesting ? 'Suggesting...' : 'Suggest 1 Point'}
+                {isSuggesting ? 'Suggesting...' : 'Suggest Points'}
               </button>
             </div>
             <div className="mt-1">
@@ -430,7 +466,8 @@ export function ControlPointsPanel({
               </span>
             </div>
             <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">
-              Request one suggestion at a time, then review and add it.
+              Suggestions include 4 points. Use ‘Pick on PDF’ to correct the PDF
+              location before adding.
             </p>
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
               {fallbackHintText(defaultGeorefSuggestionSource)}
@@ -541,6 +578,30 @@ export function ControlPointsPanel({
                       </button>
                       <button
                         type="button"
+                        onClick={() => {
+                          if (pdfSuggestionRelocatingId === suggestion.id) {
+                            setPdfSuggestionRelocatingId(null);
+                            setPlacementMode('idle');
+                          } else {
+                            cancelPlacement();
+                            setRelocatingTarget(null);
+                            setPdfSuggestionRelocatingId(suggestion.id);
+                            setPlacementMode('awaiting_pdf');
+                          }
+                        }}
+                        className={`px-2 py-1 text-xs rounded border ${
+                          pdfSuggestionRelocatingId === suggestion.id
+                            ? 'border-purple-500 bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300'
+                            : 'border-gray-300 dark:border-gray-600'
+                        }`}
+                        title="Click the PDF to manually set the PDF location for this GCP"
+                      >
+                        {pdfSuggestionRelocatingId === suggestion.id
+                          ? 'Cancel PDF pick'
+                          : 'Pick on PDF'}
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => acceptSuggestion(suggestion)}
                         className="px-2 py-1 text-xs rounded border border-gray-300 dark:border-gray-600"
                       >
@@ -583,13 +644,29 @@ export function ControlPointsPanel({
             <p className="text-xs font-medium uppercase tracking-wide text-gray-600 dark:text-gray-300">
               Residuals by point
             </p>
-            <div className="mt-1 text-xs text-gray-700 dark:text-gray-200">
-              {transformStatus.solution.residuals.map((residual) => (
-                <p key={residual.index}>
-                  Point {residual.index + 1}: {residual.errorMeters.toFixed(2)}{' '}
-                  m
-                </p>
-              ))}
+            <div className="mt-1 text-xs space-y-0.5">
+              {transformStatus.solution.residuals.map((residual) => {
+                const rms = transformStatus.solution.rmsErrorMeters;
+                const isOutlier = residual.errorMeters > 2.5 * rms;
+                const isElevated =
+                  !isOutlier && residual.errorMeters > 1.5 * rms;
+                return (
+                  <p
+                    key={residual.index}
+                    className={
+                      isOutlier
+                        ? 'text-red-600 dark:text-red-400 font-medium'
+                        : isElevated
+                          ? 'text-amber-600 dark:text-amber-400'
+                          : 'text-gray-700 dark:text-gray-200'
+                    }
+                  >
+                    Point {residual.index + 1}:{' '}
+                    {residual.errorMeters.toFixed(2)} m
+                    {isOutlier ? ' ⚠ reposition this point' : ''}
+                  </p>
+                );
+              })}
             </div>
           </div>
         )}
