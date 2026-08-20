@@ -5,17 +5,10 @@ import {
 } from 'app/lib/georef_suggestion_adapter';
 import { MapContext } from 'app/context/map_context';
 import mapboxgl from 'mapbox-gl';
+import { useMove } from '@react-aria/interactions';
 import { useAtom } from 'jotai';
 import { nanoid } from 'nanoid';
-import {
-  type KeyboardEvent as ReactKeyboardEvent,
-  type PointerEvent as ReactPointerEvent,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState
-} from 'react';
+import { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
   solveTransform,
   type TransformControlPoint
@@ -113,11 +106,7 @@ export function ControlPointsPanel({
   );
   const [isResizing, setIsResizing] = useState(false);
   const panelRef = useRef<HTMLElement | null>(null);
-  const resizeStartRef = useRef<{
-    pointerId: number;
-    clientY: number;
-    height: number;
-  } | null>(null);
+  const rawPanelHeightRef = useRef<number | null>(null);
   const priorCursorRef = useRef<string>('');
 
   function maximumExpandedPanelHeight(): number {
@@ -135,67 +124,24 @@ export function ControlPointsPanel({
     );
   }
 
-  function handleResizePointerDown(
-    event: ReactPointerEvent<HTMLDivElement>
-  ): void {
-    event.preventDefault();
-    event.currentTarget.setPointerCapture(event.pointerId);
-    resizeStartRef.current = {
-      pointerId: event.pointerId,
-      clientY: event.clientY,
-      height: expandedPanelHeight
-    };
-    setIsResizing(true);
-  }
-
-  function handleResizePointerMove(
-    event: ReactPointerEvent<HTMLDivElement>
-  ): void {
-    const resizeStart = resizeStartRef.current;
-    if (!resizeStart || resizeStart.pointerId !== event.pointerId) {
-      return;
+  // Same drag pattern as the existing Resizer/BottomResizer components.
+  const { moveProps: panelResizeMoveProps } = useMove({
+    onMoveStart() {
+      rawPanelHeightRef.current = expandedPanelHeight;
+      setIsResizing(true);
+    },
+    onMove(event) {
+      if (rawPanelHeightRef.current === null) return;
+      rawPanelHeightRef.current -= event.deltaY;
+      setExpandedPanelHeight(
+        constrainPanelHeight(rawPanelHeightRef.current)
+      );
+    },
+    onMoveEnd() {
+      rawPanelHeightRef.current = null;
+      setIsResizing(false);
     }
-
-    setExpandedPanelHeight(
-      constrainPanelHeight(
-        resizeStart.height + resizeStart.clientY - event.clientY
-      )
-    );
-  }
-
-  function handleResizePointerEnd(
-    event: ReactPointerEvent<HTMLDivElement>
-  ): void {
-    if (resizeStartRef.current?.pointerId !== event.pointerId) {
-      return;
-    }
-
-    resizeStartRef.current = null;
-    setIsResizing(false);
-  }
-
-  function handleResizeKeyDown(
-    event: ReactKeyboardEvent<HTMLDivElement>
-  ): void {
-    let nextHeight: number | null = null;
-
-    if (event.key === 'ArrowUp') {
-      nextHeight = expandedPanelHeight + 24;
-    } else if (event.key === 'ArrowDown') {
-      nextHeight = expandedPanelHeight - 24;
-    } else if (event.key === 'Home') {
-      nextHeight = MIN_EXPANDED_PANEL_HEIGHT;
-    } else if (event.key === 'End') {
-      nextHeight = maximumExpandedPanelHeight();
-    }
-
-    if (nextHeight === null) {
-      return;
-    }
-
-    event.preventDefault();
-    setExpandedPanelHeight(constrainPanelHeight(nextHeight));
-  }
+  });
 
   // Wire up the crosshair cursor and single-click handler when a relocation is pending.
   useEffect(() => {
@@ -481,25 +427,20 @@ export function ControlPointsPanel({
       }}
     >
       {!collapsed && (
-        <div
+        <button
+          {...panelResizeMoveProps}
+          type="button"
           role="separator"
           aria-label="Resize control points panel"
           aria-orientation="horizontal"
           aria-valuemin={MIN_EXPANDED_PANEL_HEIGHT}
           aria-valuemax={maximumExpandedPanelHeight()}
           aria-valuenow={Math.round(expandedPanelHeight)}
-          tabIndex={0}
           title="Drag to resize control points panel"
-          onPointerDown={handleResizePointerDown}
-          onPointerMove={handleResizePointerMove}
-          onPointerUp={handleResizePointerEnd}
-          onPointerCancel={handleResizePointerEnd}
-          onLostPointerCapture={handleResizePointerEnd}
-          onKeyDown={handleResizeKeyDown}
-          className={`group h-2 shrink-0 cursor-row-resize touch-none select-none border-b border-gray-200 dark:border-gray-700 ${isResizing ? 'bg-blue-100 dark:bg-blue-950/60' : 'hover:bg-gray-100 dark:hover:bg-gray-800'}`}
+          className={`group h-2 w-full shrink-0 cursor-row-resize touch-none select-none border-b border-gray-200 dark:border-gray-700 ${isResizing ? 'bg-blue-100 dark:bg-blue-950/60' : 'hover:bg-gray-100 dark:hover:bg-gray-800'}`}
         >
           <span className="block mx-auto mt-[3px] h-px w-10 bg-gray-300 dark:bg-gray-600 group-hover:bg-blue-500" />
-        </div>
+        </button>
       )}
       <header className="px-3 py-2 border-b border-gray-200 dark:border-gray-700 flex items-center gap-2">
         <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
