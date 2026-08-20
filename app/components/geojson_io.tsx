@@ -393,11 +393,7 @@ export function GeojsonIO() {
                   }}
                   onControlPointClick={focusControlPoint}
                 />
-                {!isPdfWorkspaceMaximized && (
-                  <ControlPointsPanel
-                    onControlPointClick={focusControlPoint}
-                  />
-                )}
+                <ControlPointsPanel onControlPointClick={focusControlPoint} />
               </div>
               {!isPdfWorkspaceMaximized && (
                 <DigitizerSplitResizer
