@@ -301,80 +301,98 @@ export class OpenCvExtractionEngine implements SpatialExtractionEngine {
 
         if (area > 400 && circularity > 0.04) {
           const approx = new cv.Mat();
-          const epsilon = 0.01 * cv.arcLength(contour, true);
-          cv.approxPolyDP(contour, approx, epsilon, true);
+          try {
+            const epsilon = 0.01 * cv.arcLength(contour, true);
+            cv.approxPolyDP(contour, approx, epsilon, true);
 
-          const rawCoords: { x: number; y: number }[] = [];
-          const data = approx.data32S;
-          for (let j = 0; j < data.length; j += 2) {
-            rawCoords.push({ x: data[j], y: data[j + 1] });
-          }
-
-          // Remove consecutive duplicate vertices; simplepolygon (used by unkinkPolygon) throws on them.
-          const coords = removeDuplicateVertices(rawCoords);
-
-          if (coords.length >= 3) {
-            // Close the polygon if not closed
-            if (
-              coords[0].x !== coords[coords.length - 1].x ||
-              coords[0].y !== coords[coords.length - 1].y
-            ) {
-              coords.push({ x: coords[0].x, y: coords[0].y });
+            const rawCoords: { x: number; y: number }[] = [];
+            const data = approx.data32S;
+            for (let j = 0; j < data.length; j += 2) {
+              rawCoords.push({ x: data[j], y: data[j + 1] });
             }
 
-            if (coords.length >= 4) {
-              const turfCoords: Position[][] = [coords.map((c) => [c.x, c.y])];
-              const turfPoly = polygon(turfCoords);
-              const kinks = turfKinks(turfPoly);
+            // Remove consecutive duplicate vertices; simplepolygon (used by unkinkPolygon) throws on them.
+            const coords = removeDuplicateVertices(rawCoords);
 
-              const validCoordsList: { x: number; y: number }[][] = [];
-              let needsValidation = false;
+            if (coords.length >= 3) {
+              // Close the polygon if not closed
+              if (
+                coords[0].x !== coords[coords.length - 1].x ||
+                coords[0].y !== coords[coords.length - 1].y
+              ) {
+                coords.push({ x: coords[0].x, y: coords[0].y });
+              }
 
-              if (kinks.features.length > 0) {
-                needsValidation = true;
-                const unkinked = unkinkPolygon(turfPoly);
-                for (const feature of unkinked.features) {
-                  if (
-                    feature.geometry.type === 'Polygon' &&
-                    feature.geometry.coordinates.length > 0
-                  ) {
-                    const ring = feature.geometry.coordinates[0];
+              if (coords.length >= 4) {
+                const turfCoords: Position[][] = [
+                  coords.map((c) => [c.x, c.y])
+                ];
+                const turfPoly = polygon(turfCoords);
+                const kinks = turfKinks(turfPoly);
 
-                    // Filter out tiny slivers generated during unkinking
-                    let planarArea = 0;
-                    for (
-                      let n = 0, m = ring.length - 1;
-                      n < ring.length;
-                      m = n++
-                    ) {
-                      planarArea +=
-                        (ring[m][0] + ring[n][0]) * (ring[m][1] - ring[n][1]);
+                const validCoordsList: { x: number; y: number }[][] = [];
+                let needsValidation = false;
+
+                if (kinks.features.length > 0) {
+                  needsValidation = true;
+
+                  // Non-adjacent repeated vertices (e.g. a pinch point) make
+                  // simplepolygon throw here; fall back to the raw outline
+                  // and let AI/human validation flag it instead of aborting
+                  // extraction of every other shape.
+                  try {
+                    const unkinked = unkinkPolygon(turfPoly);
+                    for (const feature of unkinked.features) {
+                      if (
+                        feature.geometry.type === 'Polygon' &&
+                        feature.geometry.coordinates.length > 0
+                      ) {
+                        const ring = feature.geometry.coordinates[0];
+
+                        // Filter out tiny slivers generated during unkinking
+                        let planarArea = 0;
+                        for (
+                          let n = 0, m = ring.length - 1;
+                          n < ring.length;
+                          m = n++
+                        ) {
+                          planarArea +=
+                            (ring[m][0] + ring[n][0]) *
+                            (ring[m][1] - ring[n][1]);
+                        }
+                        if (Math.abs(planarArea / 2.0) < 400) continue;
+
+                        validCoordsList.push(
+                          ring.map((c) => ({ x: c[0], y: c[1] }))
+                        );
+                      }
                     }
-                    if (Math.abs(planarArea / 2.0) < 400) continue;
-
-                    validCoordsList.push(
-                      ring.map((c) => ({ x: c[0], y: c[1] }))
+                  } catch (unkinkError) {
+                    console.warn(
+                      'Could not resolve a self-intersecting shape; keeping the raw outline for manual review.',
+                      unkinkError
                     );
+                    validCoordsList.push(coords);
+                  }
+                } else {
+                  validCoordsList.push(coords);
+                  if (coords.length > 50 || circularity < 0.1) {
+                    needsValidation = true;
                   }
                 }
-              } else {
-                validCoordsList.push(coords);
-                if (coords.length > 50 || circularity < 0.1) {
-                  needsValidation = true;
+
+                for (const validCoords of validCoordsList) {
+                  preliminaryResults.push({
+                    legendItem: item,
+                    pdfCoordinates: validCoords,
+                    _needsValidation: needsValidation
+                  });
                 }
               }
-
-              for (const validCoords of validCoordsList) {
-                preliminaryResults.push({
-                  legendItem: item,
-                  pdfCoordinates: validCoords,
-                  _needsValidation: needsValidation
-                });
-              }
             }
+          } finally {
+            approx.delete();
           }
-
-          approx.delete();
         }
         contour.delete();
       }
