@@ -51,6 +51,8 @@ function isOpenCvReady(): boolean {
     }
   }
 
+  if (!cv) return false;
+
   const cvAny = cv as unknown as {
     Mat?: unknown;
     imread?: unknown;
@@ -112,7 +114,7 @@ async function ensureOpenCvReady(): Promise<void> {
       if (!isOpenCvReady()) {
         throw new Error('OpenCV.js initialized but required APIs are missing.');
       }
-    }).finally(() => {
+    })().finally(() => {
       openCvReadyPromise = null;
     });
   }

@@ -150,6 +150,21 @@ export function transformPoint(
 }
 
 /**
+ * Transforms a point from a rendered PDF canvas into WGS-84 using the
+ * unscaled PDF coordinate space used by the control points.
+ */
+export function transformRenderedPoint(
+  transform: SolvedTransform,
+  point: PdfCoordinate,
+  scale: number
+): LonLatCoordinate {
+  if (!Number.isFinite(scale) || scale <= 0) {
+    throw new Error('PDF render scale must be a positive number.');
+  }
+  return transformPoint(transform, { x: point.x / scale, y: point.y / scale });
+}
+
+/**
  * Computes a thin-plate spline PDF->WGS84 transform.
  * With ≥6 well-distributed GCPs this absorbs scan warp and projection distortion
  * that an affine model cannot, achieving near-zero residuals at all control points.

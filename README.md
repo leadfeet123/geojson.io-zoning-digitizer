@@ -11,6 +11,20 @@ This fork of geojson.io is a browser-based zoning PDF digitization workbench. It
 - Continue using the existing geojson.io map editor for general-purpose spatial editing when digitizer mode is not active.
 - Use the standard geojson.io keyboard shortcuts, import/export paths, and editing tools already available in the app.
 
+### Parcel-assisted extraction
+
+Select a local WGS-84 GeoJSON FeatureCollection of parcel polygons in the PDF
+viewer's **Legend & shape extraction** panel. After extracting and
+georeferencing shapes, the app scans the file and indexes only parcel edges
+whose bounds intersect an extracted shape's bounds plus the adjustable snap
+tolerance (5 m by default). Parcel data are streamed from the local file; a
+statewide file can still take time to scan and must be scanned again when
+extraction is rerun. The GCPs must be confirmed on the current PDF page.
+
+Snapping is heuristic: it considers nearby edges, keeps poorly aligned PDF
+outlines unchanged, and does not guarantee legal zoning boundaries. Review all
+results before export. Parcel data are not included in the exported GeoJSON.
+
 ## Bug Reports & Feature Requests
 
 If you encounter any issues or have suggestions for this fork, please open an issue in the [geojson.io GitHub repository](https://github.com/mapbox/geojson.io/issues) for now and clearly note that the report applies to the zoning digitizer fork.

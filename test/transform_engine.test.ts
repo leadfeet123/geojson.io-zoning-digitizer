@@ -3,6 +3,7 @@ import {
   solveTransform,
   solveThinPlateSpline,
   transformPoint,
+  transformRenderedPoint,
   type AffineTransform,
   type TpsTransform,
   type TransformControlPoint
@@ -39,6 +40,19 @@ function makePoint(
 }
 
 describe('transform_engine', () => {
+  it('uses unscaled PDF coordinates for a rendered canvas point', () => {
+    const transform = makeKnownTransform();
+    const expected = transformPoint(transform, { x: 100, y: 200 });
+    expect(transformRenderedPoint(transform, { x: 200, y: 400 }, 2)).toEqual(
+      expected
+    );
+    expect(transformRenderedPoint(transform, { x: 50, y: 100 }, 0.5)).toEqual(
+      expected
+    );
+    expect(() => transformRenderedPoint(transform, { x: 1, y: 1 }, 0)).toThrow(
+      'PDF render scale must be a positive number.'
+    );
+  });
   it('solves an exact affine transform from three points', () => {
     const knownTransform = makeKnownTransform();
     const controlPoints: TransformControlPoint[] = [
