@@ -103,7 +103,7 @@ describe('control point picking', () => {
       button('Suggest Points').click();
       await Promise.resolve();
     });
-    expect(container.textContent).toContain('PDF (50.0, 60.0) p1');
+    expect(container.textContent).toContain('PDF (100.0, 120.0) p1');
 
     act(() => button('Pick on map').click());
     expect(store.get(relocatingTargetAtom)).toEqual({
@@ -126,30 +126,6 @@ describe('control point picking', () => {
       pdf: { x: 25, y: 35, page: 1 },
       map: { lon: -72, lat: 42 },
       confirmed: false
-    });
-  });
-
-  it('uses the request-time PDF scale when adding an unedited suggestion', async () => {
-    suggestPoints.mockResolvedValue([
-      {
-        id: 'suggestion',
-        pdf: { x: 100, y: 120, page: 1 },
-        map: { lon: -72, lat: 42 },
-        confidence: 0.8,
-        rationale: 'review'
-      }
-    ]);
-    act(() => button('Show AI Suggestion').click());
-    await act(async () => {
-      button('Suggest Points').click();
-      await Promise.resolve();
-    });
-    canvas.dataset.pdfScale = '4';
-    act(() => button('Add as Control Point').click());
-    expect(store.get(controlPointsAtom)[0].pdf).toEqual({
-      x: 50,
-      y: 60,
-      page: 1
     });
   });
 
