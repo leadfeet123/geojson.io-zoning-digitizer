@@ -11,6 +11,13 @@ This fork of geojson.io is a browser-based zoning PDF digitization workbench. It
 - Continue using the existing geojson.io map editor for general-purpose spatial editing when digitizer mode is not active.
 - Use the standard geojson.io keyboard shortcuts, import/export paths, and editing tools already available in the app.
 
+### Reviewing georeference suggestions
+
+Use **Pick on PDF** and **Pick on map** to adjust a suggested pair before
+selecting **Add as Control Point**. Restore the split workspace to pick on the
+map. Moving an existing confirmed point or editing its coordinates clears its
+confirmation; review and confirm it again before using it for georeferencing.
+
 ### Parcel-assisted extraction
 
 Select a local WGS-84 GeoJSON FeatureCollection of parcel polygons in the PDF

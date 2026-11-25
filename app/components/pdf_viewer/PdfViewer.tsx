@@ -714,6 +714,10 @@ export function PdfViewer({
     setCropEnd(null);
   }, []);
 
+  useEffect(() => {
+    if (isPickingPdfPoint) cancelLegendCrop();
+  }, [isPickingPdfPoint, cancelLegendCrop]);
+
   const commitPageInput = useCallback(() => {
     const requestedPage = Number.parseInt(pageInput, 10);
 
@@ -960,7 +964,7 @@ export function PdfViewer({
                 ? isExtracting
                   ? 'Reading the selected legend area.'
                   : 'Drag a box around the zoning legend on this page.'
-                : 'Click the matching location on this PDF page, then select it on the map.'}
+                : 'Click the matching location on this PDF page.'}
             </p>
           </div>
           {isCroppingMode && !isExtracting && (
@@ -1014,7 +1018,7 @@ export function PdfViewer({
                 <button
                   type="button"
                   onClick={startLegendCrop}
-                  disabled={isCroppingMode || isExtracting}
+                  disabled={isCroppingMode || isExtracting || isPickingPdfPoint}
                   className="px-2.5 py-1.5 text-xs font-medium text-gray-800 border border-gray-300 rounded hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:text-gray-100 dark:hover:bg-gray-800"
                 >
                   {isExtracting ? 'Extracting legend...' : 'Crop legend'}
@@ -1280,17 +1284,18 @@ export function PdfViewer({
                       <button
                         key={point.id}
                         type="button"
+                        disabled={isPickingPdfPoint}
                         onClick={(event) => {
                           event.stopPropagation();
                           onControlPointClick?.(point.id);
                         }}
-                        className={
+                        className={`${
                           isActive
-                            ? 'absolute -translate-x-1/2 -translate-y-1/2 w-5 h-5 rounded-full border-2 border-black text-[10px] font-semibold text-black pointer-events-auto shadow'
+                            ? 'absolute -translate-x-1/2 -translate-y-1/2 w-5 h-5 rounded-full border-2 border-black text-[10px] font-semibold text-black shadow'
                             : point.confirmed
-                              ? 'absolute -translate-x-1/2 -translate-y-1/2 w-4 h-4 rounded-full border border-black/70 bg-emerald-400 text-[10px] font-semibold text-black pointer-events-auto shadow'
-                              : 'absolute -translate-x-1/2 -translate-y-1/2 w-4 h-4 rounded-full border border-black/70 bg-sky-300 text-[10px] font-semibold text-black pointer-events-auto shadow'
-                        }
+                              ? 'absolute -translate-x-1/2 -translate-y-1/2 w-4 h-4 rounded-full border border-black/70 bg-emerald-400 text-[10px] font-semibold text-black shadow'
+                              : 'absolute -translate-x-1/2 -translate-y-1/2 w-4 h-4 rounded-full border border-black/70 bg-sky-300 text-[10px] font-semibold text-black shadow'
+                        } ${isPickingPdfPoint ? 'pointer-events-none' : 'pointer-events-auto'}`}
                         style={pointStyle}
                         aria-label={`Control point ${index + 1} on page ${activePage}`}
                         title={`Control point ${index + 1}`}

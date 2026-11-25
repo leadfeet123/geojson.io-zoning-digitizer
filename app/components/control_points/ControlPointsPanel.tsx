@@ -24,7 +24,11 @@ import {
   showGeorefSuggestionsAtom,
   type ControlPointPair
 } from 'state/control_points';
-import { activePdfAtom, activePdfPageAtom } from 'state/digitizer';
+import {
+  activePdfAtom,
+  activePdfPageAtom,
+  digitizerWorkspaceViewAtom
+} from 'state/digitizer';
 
 const COLLAPSED_PANEL_HEIGHT = 40;
 const DEFAULT_EXPANDED_PANEL_HEIGHT = 280;
@@ -94,6 +98,7 @@ export function ControlPointsPanel({
   const [pendingPdfPoint, setPendingPdfPoint] = useAtom(pendingPdfPointAtom);
   const activePdf = useAtomValue(activePdfAtom);
   const [activePdfPage, setActivePdfPage] = useAtom(activePdfPageAtom);
+  const [workspaceView] = useAtom(digitizerWorkspaceViewAtom);
   const [suggestions, setSuggestions] = useAtom(georefSuggestionsAtom);
   const [isSuggesting, setIsSuggesting] = useState(false);
   const [suggestionError, setSuggestionError] = useState<string | null>(null);
@@ -123,6 +128,10 @@ export function ControlPointsPanel({
       setSuggestionError(null);
     }
   }, [activePdf, setSuggestions]);
+
+  useEffect(() => {
+    if (workspaceView === 'pdf') setRelocatingTarget(null);
+  }, [workspaceView, setRelocatingTarget]);
 
   function maximumExpandedPanelHeight(): number {
     const parentHeight = panelRef.current?.parentElement?.clientHeight ?? 0;
@@ -175,7 +184,9 @@ export function ControlPointsPanel({
       } else {
         setControlPoints((prev) =>
           prev.map((p) =>
-            p.id === relocatingTarget.id ? { ...p, map: { lon: lng, lat } } : p
+            p.id === relocatingTarget.id
+              ? { ...p, map: { lon: lng, lat }, confirmed: false }
+              : p
           )
         );
       }
@@ -196,34 +207,25 @@ export function ControlPointsPanel({
     setSuggestions
   ]);
 
-  // When a PDF point is picked while targeting a suggestion, create the GCP immediately.
   useEffect(() => {
     if (!pendingPdfPoint || !pdfSuggestionRelocatingId) return;
-    const target = suggestions.find((s) => s.id === pdfSuggestionRelocatingId);
-    if (target) {
-      setControlPoints((current) => [
-        ...current,
-        {
-          id: nanoid(10),
-          pdf: pendingPdfPoint,
-          map: target.map,
-          confirmed: false
-        }
-      ]);
-      setSuggestions((prev) => prev.filter((s) => s.id !== target.id));
-    }
+    setSuggestions((current) =>
+      current.map((suggestion) =>
+        suggestion.id === pdfSuggestionRelocatingId
+          ? { ...suggestion, pdf: pendingPdfPoint }
+          : suggestion
+      )
+    );
     setPdfSuggestionRelocatingId(null);
     setPendingPdfPoint(null);
     setPlacementMode('idle');
   }, [
     pendingPdfPoint,
     pdfSuggestionRelocatingId,
-    setControlPoints,
     setPdfSuggestionRelocatingId,
     setPendingPdfPoint,
     setPlacementMode,
-    setSuggestions,
-    suggestions
+    setSuggestions
   ]);
 
   const lowConfidenceCount = useMemo(
@@ -310,7 +312,8 @@ export function ControlPointsPanel({
               pdf: {
                 ...point.pdf,
                 ...patch
-              }
+              },
+              confirmed: false
             }
           : point
       )
@@ -329,7 +332,8 @@ export function ControlPointsPanel({
               map: {
                 ...point.map,
                 ...patch
-              }
+              },
+              confirmed: false
             }
           : point
       )
@@ -345,11 +349,12 @@ export function ControlPointsPanel({
     setPlacementMode('idle');
     setPendingPdfPoint(null);
     setPdfSuggestionRelocatingId(null);
+    setRelocatingTarget(null);
   }
 
   function startPlacement(): void {
+    cancelPlacement();
     setPlacementMode('awaiting_pdf');
-    setPendingPdfPoint(null);
   }
 
   function fitMapToSuggestions(items: ReadonlyArray<GeorefSuggestion>): void {
@@ -519,6 +524,7 @@ export function ControlPointsPanel({
       }
     }
 
+    cancelPlacement();
     setControlPoints((current) => [
       ...current,
       {
@@ -607,7 +613,7 @@ export function ControlPointsPanel({
         <button
           type="button"
           onClick={cancelPlacement}
-          disabled={placementMode === 'idle'}
+          disabled={placementMode === 'idle' && !relocatingTarget}
           className="px-3 py-1 text-xs rounded border border-gray-300 dark:border-gray-600 disabled:opacity-50"
         >
           Cancel
@@ -786,6 +792,7 @@ export function ControlPointsPanel({
                       </button>
                       <button
                         type="button"
+                        disabled={!map || workspaceView === 'pdf'}
                         onClick={() => {
                           if (relocatingTarget?.id === suggestion.id) {
                             setRelocatingTarget(null);
@@ -802,9 +809,13 @@ export function ControlPointsPanel({
                         className={`px-2 py-1 text-xs rounded border ${
                           relocatingTarget?.id === suggestion.id
                             ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
-                            : 'border-gray-300 dark:border-gray-600'
+                            : 'border-gray-300 dark:border-gray-600 disabled:opacity-50'
                         }`}
-                        title="Click the map to reposition this GPS point"
+                        title={
+                          workspaceView === 'pdf'
+                            ? 'Restore the split workspace to pick on the map'
+                            : 'Click the map to reposition this GPS point'
+                        }
                       >
                         {relocatingTarget?.id === suggestion.id
                           ? 'Cancel reposition'
@@ -818,8 +829,8 @@ export function ControlPointsPanel({
                             setPlacementMode('idle');
                           } else {
                             cancelPlacement();
-                            setRelocatingTarget(null);
                             setPdfSuggestionRelocatingId(suggestion.id);
+                            setActivePdfPage(suggestion.pdf.page);
                             setPlacementMode('awaiting_pdf');
                           }
                         }}
@@ -1053,6 +1064,7 @@ export function ControlPointsPanel({
                     </button>
                     <button
                       type="button"
+                      disabled={!map || workspaceView === 'pdf'}
                       onClick={() => {
                         if (relocatingTarget?.id === point.id) {
                           setRelocatingTarget(null);
@@ -1066,9 +1078,13 @@ export function ControlPointsPanel({
                       className={`mr-2 px-2 py-1 rounded border text-xs ${
                         relocatingTarget?.id === point.id
                           ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
-                          : 'border-gray-300 dark:border-gray-600'
+                          : 'border-gray-300 dark:border-gray-600 disabled:opacity-50'
                       }`}
-                      title="Click the map to move the GPS location for this point"
+                      title={
+                        workspaceView === 'pdf'
+                          ? 'Restore the split workspace to pick on the map'
+                          : 'Click the map to move the GPS location for this point'
+                      }
                     >
                       {relocatingTarget?.id === point.id
                         ? 'Cancel'
