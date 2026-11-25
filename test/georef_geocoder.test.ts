@@ -118,7 +118,7 @@ describe('georef_geocoder', () => {
   it('disambiguates jurisdiction by state abbreviation and resolves Overpass intersections', async () => {
     globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
-      if (url.includes('nominatim.openstreetmap.org')) {
+      if (new URL(url).hostname === 'nominatim.openstreetmap.org') {
         return {
           ok: true,
           json: async () => [
