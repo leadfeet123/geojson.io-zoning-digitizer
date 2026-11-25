@@ -31,6 +31,7 @@ import {
 import { newFeatureId as generateId } from '../../lib/id';
 import type { DigitizerFeature } from 'types/digitizer';
 import type { ControlPointPair } from 'state/control_points';
+import type { GeorefSuggestion } from 'app/lib/georef_suggestion_adapter';
 
 interface PdfViewerProps {
   file: File | null;
@@ -43,6 +44,7 @@ interface PdfViewerProps {
     page: number;
   } | null;
   controlPoints?: ControlPointPair[];
+  suggestions?: GeorefSuggestion[];
   activeControlPointId?: string | null;
   onPageChange?: (page: number) => void;
   onPageCountChange?: (pageCount: number) => void;
@@ -66,6 +68,7 @@ export function PdfViewer({
   isPickingPdfPoint = false,
   pendingPdfPoint = null,
   controlPoints = [],
+  suggestions = [],
   activeControlPointId = null,
   onPageChange,
   onPageCountChange,
@@ -304,6 +307,8 @@ export function PdfViewer({
 
         canvas.dataset.pdfScale = String(scale);
         canvas.dataset.pdfPage = String(activePage);
+        canvas.dataset.pdfPageWidth = String(unscaledViewport.width);
+        canvas.dataset.pdfPageHeight = String(unscaledViewport.height);
         setRenderedScale(scale);
         setRenderedSize({
           width: Math.ceil(viewport.width),
@@ -349,6 +354,14 @@ export function PdfViewer({
   const pointsOnPage = useMemo(
     () => controlPoints.filter((point) => point.pdf.page === activePage),
     [activePage, controlPoints]
+  );
+
+  const suggestionsOnPage = useMemo(
+    () =>
+      suggestions
+        .map((suggestion, index) => ({ suggestion, index }))
+        .filter((entry) => entry.suggestion.pdf.page === activePage),
+    [activePage, suggestions]
   );
 
   const pendingPointOnPage = useMemo(() => {
@@ -403,7 +416,7 @@ export function PdfViewer({
       const y = event.clientY - rect.top;
       setCropEnd({ x, y });
     },
-    [isDrawingCrop, cropStart]
+    [isCroppingMode, isDrawingCrop, cropStart]
   );
 
   const handleCanvasMouseUp = useCallback(
@@ -747,11 +760,18 @@ export function PdfViewer({
       const canvas = event.currentTarget;
       const rect = canvas.getBoundingClientRect();
       const scale = Number(canvas.dataset.pdfScale ?? '1');
+      const pageWidth = Number(canvas.dataset.pdfPageWidth ?? '0');
+      const pageHeight = Number(canvas.dataset.pdfPageHeight ?? '0');
 
-      const x = (event.clientX - rect.left) / Math.max(scale, 0.0001);
-      const y = (event.clientY - rect.top) / Math.max(scale, 0.0001);
+      const x =
+        pageWidth > 0 && rect.width > 0
+          ? ((event.clientX - rect.left) / rect.width) * pageWidth
+          : (event.clientX - rect.left) / Math.max(scale, 0.0001);
+      const y =
+        pageHeight > 0 && rect.height > 0
+          ? ((event.clientY - rect.top) / rect.height) * pageHeight
+          : (event.clientY - rect.top) / Math.max(scale, 0.0001);
 
-      // TODO(phase-2): Extend this interface for linked GCP placement with map coordinates.
       onPdfCoordinatePick({ x, y, page: activePage });
     },
     [activePage, isCroppingMode, isDrawingCrop, onPdfCoordinatePick]
@@ -1206,9 +1226,25 @@ export function PdfViewer({
                 }}
               />
             )}
-            {(pointsOnPage.length > 0 || pendingPointOnPage) &&
+            {(pointsOnPage.length > 0 ||
+              suggestionsOnPage.length > 0 ||
+              pendingPointOnPage) &&
               renderedSize.width > 0 && (
                 <div className="absolute inset-0 pointer-events-none">
+                  {suggestionsOnPage.map(({ suggestion, index }) => (
+                    <div
+                      key={suggestion.id}
+                      className="absolute -translate-x-1/2 -translate-y-1/2 px-1 h-5 min-w-5 rounded-full border border-dashed border-white bg-purple-600/90 text-[9px] font-bold text-white flex items-center justify-center shadow"
+                      style={{
+                        left: suggestion.pdf.x * renderedScale,
+                        top: suggestion.pdf.y * renderedScale
+                      }}
+                      aria-label={`Suggested point S${index + 1} on page ${activePage}`}
+                      title={`S${index + 1}: ${suggestion.rationale}`}
+                    >
+                      S{index + 1}
+                    </div>
+                  ))}
                   {pointsOnPage.map((point, index) => {
                     const left = point.pdf.x * renderedScale;
                     const top = point.pdf.y * renderedScale;

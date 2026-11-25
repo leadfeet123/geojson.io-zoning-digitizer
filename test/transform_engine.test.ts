@@ -1,10 +1,12 @@
 import {
+  selectConsistentControlPoints,
   solveAffineTransform,
   solveTransform,
   solveThinPlateSpline,
   transformPoint,
   transformRenderedPoint,
   type AffineTransform,
+  type CandidateControlPointOption,
   type TpsTransform,
   type TransformControlPoint
 } from 'app/lib/transform_engine';
@@ -198,5 +200,126 @@ describe('transform_engine', () => {
     const t = result.transform as TpsTransform;
     expect(t.cpX).toHaveLength(6);
     expect(t.lonParams).toHaveLength(9); // n + 3
+  });
+
+  it('selectConsistentControlPoints rejects severe outliers and picks 4 spread inliers', () => {
+    // Realistic North-up municipal map at lat ~40.11° (cos(40.11°) ≈ 0.7648):
+    // 1 PDF point ≈ 5 meters => dLon/dx ≈ 5 / (111320 * 0.7648) ≈ 0.0000587, dLat/dy ≈ -5 / 111320 ≈ -0.0000449
+    const northUpTransform: AffineTransform = {
+      type: 'affine',
+      lon: { a: 0.0000587, b: 0.0000005, c: -88.26 },
+      lat: { d: 0.0000004, e: -0.0000449, f: 40.13 }
+    };
+
+    const goodCoords = [
+      { x: 100, y: 100 },
+      { x: 650, y: 120 },
+      { x: 120, y: 520 },
+      { x: 640, y: 510 },
+      { x: 380, y: 310 }
+    ];
+
+    const groups: CandidateControlPointOption<string>[][] = [
+      ...goodCoords.map((pt, idx) => [
+        {
+          pdf: pt,
+          map: transformPoint(northUpTransform, pt),
+          priorConfidence: 0.9,
+          metadata: `inlier-${idx}`
+        }
+      ]),
+      // Severe outlier 1: wrong branch 3 km away
+      [
+        {
+          pdf: { x: 400, y: 150 },
+          map: { lon: -88.2, lat: 40.16 },
+          priorConfidence: 0.95,
+          metadata: 'outlier-branch'
+        }
+      ],
+      // Severe outlier 2: completely wrong state
+      [
+        {
+          pdf: { x: 200, y: 400 },
+          map: { lon: -74.006, lat: 40.7128 },
+          priorConfidence: 0.95,
+          metadata: 'outlier-nyc'
+        }
+      ]
+    ];
+
+    const selection = selectConsistentControlPoints(groups, {
+      maxPoints: 4,
+      pdfSpanHint: 792
+    });
+
+    expect(selection).not.toBeNull();
+    expect(selection!.selected).toHaveLength(4);
+    expect(selection!.rmsErrorMeters).toBeLessThan(2);
+    expect(
+      selection!.selected.every((item) => item.metadata?.startsWith('inlier-'))
+    ).toBe(true);
+    expect(Math.abs(selection!.rotationDegrees)).toBeLessThan(2);
+  });
+
+  it('selectConsistentControlPoints disambiguates multi-candidate street intersections', () => {
+    const northUpTransform: AffineTransform = {
+      type: 'affine',
+      lon: { a: 0.0000587, b: 0, c: -88.26 },
+      lat: { d: 0, e: -0.0000449, f: 40.13 }
+    };
+
+    const p1 = { x: 120, y: 110 };
+    const p2 = { x: 620, y: 130 };
+    const p3 = { x: 140, y: 490 };
+    const p4 = { x: 610, y: 480 };
+
+    const groups: CandidateControlPointOption<string>[][] = [
+      [{ pdf: p1, map: transformPoint(northUpTransform, p1), metadata: 'p1' }],
+      [{ pdf: p2, map: transformPoint(northUpTransform, p2), metadata: 'p2' }],
+      [{ pdf: p3, map: transformPoint(northUpTransform, p3), metadata: 'p3' }],
+      [
+        // Ambiguous road crossing twice: wrong East/West crossing vs true crossing
+        {
+          pdf: p4,
+          map: { lon: -88.29, lat: 40.09 },
+          metadata: 'p4-wrong'
+        },
+        {
+          pdf: p4,
+          map: transformPoint(northUpTransform, p4),
+          metadata: 'p4-true'
+        }
+      ]
+    ];
+
+    const selection = selectConsistentControlPoints(groups, { maxPoints: 4 });
+    expect(selection).not.toBeNull();
+    expect(selection!.selected).toHaveLength(4);
+    expect(selection!.selected.map((s) => s.metadata)).toContain('p4-true');
+    expect(selection!.selected.map((s) => s.metadata)).not.toContain(
+      'p4-wrong'
+    );
+  });
+
+  it('selectConsistentControlPoints rejects mirror-flipped coordinate sets', () => {
+    // East-West flipped (det < 0 in right-handed space)
+    const mirroredTransform: AffineTransform = {
+      type: 'affine',
+      lon: { a: -0.0000587, b: 0, c: -88.26 },
+      lat: { d: 0, e: -0.0000449, f: 40.13 }
+    };
+
+    const pts = [
+      { x: 100, y: 100 },
+      { x: 600, y: 100 },
+      { x: 100, y: 500 },
+      { x: 600, y: 500 }
+    ];
+    const groups = pts.map((pdf) => [
+      { pdf, map: transformPoint(mirroredTransform, pdf) }
+    ]);
+
+    expect(selectConsistentControlPoints(groups)).toBeNull();
   });
 });

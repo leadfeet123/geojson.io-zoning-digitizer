@@ -6,7 +6,7 @@ import {
 import { MapContext } from 'app/context/map_context';
 import mapboxgl from 'mapbox-gl';
 import { useMove } from '@react-aria/interactions';
-import { useAtom } from 'jotai';
+import { useAtom, useAtomValue } from 'jotai';
 import { nanoid } from 'nanoid';
 import { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -17,12 +17,14 @@ import {
   activeControlPointIdAtom,
   controlPointPlacementModeAtom,
   controlPointsAtom,
+  georefSuggestionsAtom,
   pendingPdfPointAtom,
   pdfSuggestionRelocatingIdAtom,
   relocatingTargetAtom,
+  showGeorefSuggestionsAtom,
   type ControlPointPair
 } from 'state/control_points';
-import { activePdfPageAtom } from 'state/digitizer';
+import { activePdfAtom, activePdfPageAtom } from 'state/digitizer';
 
 const COLLAPSED_PANEL_HEIGHT = 40;
 const DEFAULT_EXPANDED_PANEL_HEIGHT = 280;
@@ -90,11 +92,14 @@ export function ControlPointsPanel({
     controlPointPlacementModeAtom
   );
   const [pendingPdfPoint, setPendingPdfPoint] = useAtom(pendingPdfPointAtom);
+  const activePdf = useAtomValue(activePdfAtom);
   const [activePdfPage, setActivePdfPage] = useAtom(activePdfPageAtom);
-  const [suggestions, setSuggestions] = useState<GeorefSuggestion[]>([]);
+  const [suggestions, setSuggestions] = useAtom(georefSuggestionsAtom);
   const [isSuggesting, setIsSuggesting] = useState(false);
   const [suggestionError, setSuggestionError] = useState<string | null>(null);
-  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useAtom(
+    showGeorefSuggestionsAtom
+  );
   // Shared atom — also read by ControlPointMapCapture to suppress new-point creation.
   const [relocatingTarget, setRelocatingTarget] = useAtom(relocatingTargetAtom);
   const [pdfSuggestionRelocatingId, setPdfSuggestionRelocatingId] = useAtom(
@@ -108,6 +113,16 @@ export function ControlPointsPanel({
   const panelRef = useRef<HTMLElement | null>(null);
   const rawPanelHeightRef = useRef<number | null>(null);
   const priorCursorRef = useRef<string>('');
+  const lastPdfFileRef = useRef<File | null>(activePdf?.file ?? null);
+
+  useEffect(() => {
+    const nextFile = activePdf?.file ?? null;
+    if (lastPdfFileRef.current !== nextFile) {
+      lastPdfFileRef.current = nextFile;
+      setSuggestions([]);
+      setSuggestionError(null);
+    }
+  }, [activePdf, setSuggestions]);
 
   function maximumExpandedPanelHeight(): number {
     const parentHeight = panelRef.current?.parentElement?.clientHeight ?? 0;
@@ -133,9 +148,7 @@ export function ControlPointsPanel({
     onMove(event) {
       if (rawPanelHeightRef.current === null) return;
       rawPanelHeightRef.current -= event.deltaY;
-      setExpandedPanelHeight(
-        constrainPanelHeight(rawPanelHeightRef.current)
-      );
+      setExpandedPanelHeight(constrainPanelHeight(rawPanelHeightRef.current));
     },
     onMoveEnd() {
       rawPanelHeightRef.current = null;
@@ -175,7 +188,13 @@ export function ControlPointsPanel({
       mapInstance.off('click', onMapClick);
       mapInstance.getCanvas().style.cursor = priorCursorRef.current;
     };
-  }, [map, relocatingTarget, setControlPoints]);
+  }, [
+    map,
+    relocatingTarget,
+    setControlPoints,
+    setRelocatingTarget,
+    setSuggestions
+  ]);
 
   // When a PDF point is picked while targeting a suggestion, create the GCP immediately.
   useEffect(() => {
@@ -196,17 +215,32 @@ export function ControlPointsPanel({
     setPdfSuggestionRelocatingId(null);
     setPendingPdfPoint(null);
     setPlacementMode('idle');
-  }, [pendingPdfPoint, pdfSuggestionRelocatingId, suggestions]);
+  }, [
+    pendingPdfPoint,
+    pdfSuggestionRelocatingId,
+    setControlPoints,
+    setPdfSuggestionRelocatingId,
+    setPendingPdfPoint,
+    setPlacementMode,
+    setSuggestions,
+    suggestions
+  ]);
 
-  const sortedSuggestions = useMemo(
-    () => [...suggestions].sort((a, b) => b.confidence - a.confidence),
-    [suggestions]
-  );
   const lowConfidenceCount = useMemo(
     () =>
-      sortedSuggestions.filter((suggestion) => suggestion.confidence < 0.5)
-        .length,
-    [sortedSuggestions]
+      suggestions.filter((suggestion) => suggestion.confidence < 0.5).length,
+    [suggestions]
+  );
+  const identifiedRegion = useMemo(
+    () => suggestions.find((s) => s.identifiedRegion)?.identifiedRegion ?? null,
+    [suggestions]
+  );
+  const usedHeuristicFallback = useMemo(
+    () =>
+      defaultGeorefSuggestionSource === 'Gemini' &&
+      suggestions.length > 0 &&
+      suggestions.every((s) => s.provenance === 'heuristic'),
+    [suggestions]
   );
 
   const confirmedCount = controlPoints.filter(
@@ -318,6 +352,47 @@ export function ControlPointsPanel({
     setPendingPdfPoint(null);
   }
 
+  function fitMapToSuggestions(items: ReadonlyArray<GeorefSuggestion>): void {
+    if (!map || items.length === 0) return;
+    const bounds = new mapboxgl.LngLatBounds();
+    let validCount = 0;
+    for (const item of items) {
+      if (
+        Number.isFinite(item.map.lon) &&
+        Number.isFinite(item.map.lat) &&
+        !(item.map.lon === 0 && item.map.lat === 0)
+      ) {
+        bounds.extend([item.map.lon, item.map.lat]);
+        validCount++;
+      }
+    }
+    if (validCount === 0) return;
+    if (validCount === 1) {
+      map.flyTo({
+        center: [items[0].map.lon, items[0].map.lat],
+        zoom: Math.max(map.getZoom(), 15),
+        essential: true
+      });
+      return;
+    }
+    map.fitBounds(bounds, {
+      padding: 72,
+      maxZoom: 16,
+      duration: 900,
+      essential: true
+    });
+  }
+
+  function focusSuggestion(suggestion: GeorefSuggestion): void {
+    setActivePdfPage(suggestion.pdf.page);
+    if (!map) return;
+    map.flyTo({
+      center: [suggestion.map.lon, suggestion.map.lat],
+      zoom: Math.max(map.getZoom(), 15),
+      essential: true
+    });
+  }
+
   async function requestSuggestions(): Promise<void> {
     if (!map) {
       setSuggestionError('Map is not ready for suggestions yet');
@@ -338,13 +413,25 @@ export function ControlPointsPanel({
       let base64Image: string | undefined;
       let imageWidth: number | undefined;
       let imageHeight: number | undefined;
-      const canvas = document.querySelector(
+      let pdfPageWidth: number | undefined;
+      let pdfPageHeight: number | undefined;
+      const canvas = document.querySelector<HTMLCanvasElement>(
         `canvas[data-pdf-page="${activePdfPage}"]`
-      ) as HTMLCanvasElement;
+      );
       if (canvas) {
         base64Image = canvas.toDataURL('image/png');
         imageWidth = canvas.width;
         imageHeight = canvas.height;
+        const parsedPageW = Number(canvas.dataset.pdfPageWidth);
+        const parsedPageH = Number(canvas.dataset.pdfPageHeight);
+        if (parsedPageW > 0 && parsedPageH > 0) {
+          pdfPageWidth = parsedPageW;
+          pdfPageHeight = parsedPageH;
+        } else {
+          const scale = Number(canvas.dataset.pdfScale) || 1;
+          pdfPageWidth = canvas.width / scale;
+          pdfPageHeight = canvas.height / scale;
+        }
       }
 
       const nextSuggestions =
@@ -362,10 +449,22 @@ export function ControlPointsPanel({
           },
           base64Image,
           imageWidth,
-          imageHeight
+          imageHeight,
+          pdfPageWidth,
+          pdfPageHeight,
+          pdfFile: activePdf?.file,
+          sourceName: activePdf?.file.name
         });
 
-      setSuggestions(nextSuggestions);
+      const ordered = [...nextSuggestions].sort(
+        (a, b) => b.confidence - a.confidence
+      );
+      setSuggestions(ordered);
+
+      // Automatically pan/zoom the map to the matched region when grounded points are found
+      if (ordered.some((s) => s.provenance && s.provenance !== 'heuristic')) {
+        fitMapToSuggestions(ordered);
+      }
     } catch (error) {
       setSuggestionError(
         error instanceof Error
@@ -397,25 +496,45 @@ export function ControlPointsPanel({
   }
 
   function acceptSuggestion(suggestion: GeorefSuggestion): void {
-    // Gemini returns canvas-pixel coords; divide by renderedScale to get PDF units.
-    const pdfCanvas = document.querySelector(
-      `canvas[data-pdf-page="${suggestion.pdf.page}"]`
-    ) as HTMLCanvasElement | null;
-    const scale = Number(pdfCanvas?.dataset.pdfScale) || 1;
+    let pdfX = suggestion.pdf.x;
+    let pdfY = suggestion.pdf.y;
+
+    // Built-in adapters already emit unscaled PDF coordinates (scale = 1).
+    // Only normalize by renderedScale if an external proxy returned oversized canvas pixels.
+    if (suggestion.provenance === 'proxy') {
+      const pdfCanvas = document.querySelector<HTMLCanvasElement>(
+        `canvas[data-pdf-page="${suggestion.pdf.page}"]`
+      );
+      const scale = Number(pdfCanvas?.dataset.pdfScale) || 1;
+      const pageW = Number(pdfCanvas?.dataset.pdfPageWidth) || 0;
+      const pageH = Number(pdfCanvas?.dataset.pdfPageHeight) || 0;
+      if (
+        pageW > 0 &&
+        pageH > 0 &&
+        scale !== 1 &&
+        (pdfX > pageW * 1.02 || pdfY > pageH * 1.02)
+      ) {
+        pdfX /= scale;
+        pdfY /= scale;
+      }
+    }
 
     setControlPoints((current) => [
       ...current,
       {
         id: nanoid(10),
         pdf: {
-          x: suggestion.pdf.x / scale,
-          y: suggestion.pdf.y / scale,
+          x: pdfX,
+          y: pdfY,
           page: suggestion.pdf.page
         },
         map: suggestion.map,
         confirmed: false
       }
     ]);
+    setSuggestions((current) =>
+      current.filter((item) => item.id !== suggestion.id)
+    );
   }
 
   return (
@@ -524,7 +643,7 @@ export function ControlPointsPanel({
       <div className="flex-1 overflow-auto">
         {showSuggestions && (
           <div className="px-3 py-2 border-b border-gray-200 dark:border-gray-700">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <p className="text-xs font-medium uppercase tracking-wide text-gray-600 dark:text-gray-300">
                 AI suggestions (experimental)
               </p>
@@ -538,21 +657,42 @@ export function ControlPointsPanel({
               >
                 {isSuggesting ? 'Suggesting...' : 'Suggest Points'}
               </button>
+              {suggestions.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => fitMapToSuggestions(suggestions)}
+                  disabled={!map}
+                  className="px-2 py-1 text-[10px] rounded border border-gray-300 dark:border-gray-600 disabled:opacity-50"
+                >
+                  Zoom map to suggestions
+                </button>
+              )}
             </div>
-            <div className="mt-1">
+            <div className="mt-1 flex items-center gap-2 flex-wrap">
               <span
                 className={`inline-flex items-center rounded px-2 py-0.5 text-[10px] font-medium ${sourceBadgeClass(defaultGeorefSuggestionSource)}`}
               >
                 Source: {defaultGeorefSuggestionSource}
               </span>
+              {identifiedRegion && (
+                <span className="inline-flex items-center rounded px-2 py-0.5 text-[10px] font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-200">
+                  Matched region: {identifiedRegion}
+                </span>
+              )}
             </div>
             <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">
-              Suggestions include 4 points. Use ‘Pick on PDF’ to correct the PDF
-              location before adding.
+              Preview markers S1–S4 appear on both the PDF and map. Use ‘Pick on
+              PDF’ or ‘Pick on map’ to fine-tune before adding.
             </p>
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
               {fallbackHintText(defaultGeorefSuggestionSource)}
             </p>
+            {usedHeuristicFallback && (
+              <p className="mt-1 text-xs font-medium text-amber-700 dark:text-amber-300">
+                AI landmark grounding could not verify street intersections for
+                this page; showing viewport-based placeholders instead.
+              </p>
+            )}
             {suggestionError && (
               <div className="mt-1 flex items-center gap-2">
                 <p className="text-xs text-red-600">{suggestionError}</p>
@@ -568,7 +708,7 @@ export function ControlPointsPanel({
                 </button>
               </div>
             )}
-            {sortedSuggestions.length > 0 && (
+            {suggestions.length > 0 && (
               <div className="mt-2 space-y-2">
                 {lowConfidenceCount > 0 && (
                   <p className="text-xs text-amber-700 dark:text-amber-300">
@@ -576,7 +716,7 @@ export function ControlPointsPanel({
                     {lowConfidenceCount === 1 ? '' : 's'} below 50% are flagged.
                   </p>
                 )}
-                {sortedSuggestions.map((suggestion) => (
+                {suggestions.map((suggestion, index) => (
                   <div
                     key={suggestion.id}
                     className={
@@ -585,16 +725,21 @@ export function ControlPointsPanel({
                         : 'border border-gray-200 dark:border-gray-700 rounded p-2'
                     }
                   >
-                    <p className="text-xs text-gray-700 dark:text-gray-200">
-                      PDF ({formatPixel(suggestion.pdf.x)},{' '}
-                      {formatPixel(suggestion.pdf.y)}) p{suggestion.pdf.page}
+                    <p className="text-xs text-gray-700 dark:text-gray-200 flex items-center gap-1.5">
+                      <span className="inline-flex items-center justify-center rounded-full bg-purple-600 text-white text-[9px] font-bold px-1.5 py-0.5">
+                        S{index + 1}
+                      </span>
+                      <span>
+                        PDF ({formatPixel(suggestion.pdf.x)},{' '}
+                        {formatPixel(suggestion.pdf.y)}) p{suggestion.pdf.page}
+                      </span>
                     </p>
                     {suggestion.confidence < 0.5 && (
                       <p className="mt-1 text-[10px] font-medium text-amber-700 dark:text-amber-300">
                         Low confidence: review carefully before adding.
                       </p>
                     )}
-                    <p className="text-xs text-gray-600 dark:text-gray-300">
+                    <p className="mt-0.5 text-xs text-gray-600 dark:text-gray-300">
                       Confidence {(suggestion.confidence * 100).toFixed(0)}%:{' '}
                       {suggestion.rationale}
                     </p>
@@ -631,6 +776,14 @@ export function ControlPointsPanel({
                           className="ml-1 w-28 px-2 py-1 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800"
                         />
                       </label>
+                      <button
+                        type="button"
+                        onClick={() => focusSuggestion(suggestion)}
+                        className="px-2 py-1 text-xs rounded border border-gray-300 dark:border-gray-600"
+                        title="Center map on this suggested location"
+                      >
+                        Locate
+                      </button>
                       <button
                         type="button"
                         onClick={() => {
