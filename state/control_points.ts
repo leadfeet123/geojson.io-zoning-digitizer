@@ -1,3 +1,4 @@
+import type { GeorefSuggestion } from 'app/lib/georef_suggestion_adapter';
 import { atom } from 'jotai';
 
 export interface PdfPoint {
@@ -27,6 +28,16 @@ export type ControlPointPlacementMode =
  * Stores matched control points (PDF coordinates to WGS-84 coordinates).
  */
 export const controlPointsAtom = atom<ControlPointPair[]>([]);
+
+/**
+ * Stores pending georeference suggestions before user acceptance.
+ */
+export const georefSuggestionsAtom = atom<GeorefSuggestion[]>([]);
+
+/**
+ * Controls whether the AI georeference suggestion panel and preview markers are visible.
+ */
+export const showGeorefSuggestionsAtom = atom(false);
 
 /**
  * Placement workflow state for adding a new control point pair.

@@ -63,7 +63,9 @@ import {
   activeControlPointIdAtom,
   controlPointPlacementModeAtom,
   controlPointsAtom,
-  pendingPdfPointAtom
+  georefSuggestionsAtom,
+  pendingPdfPointAtom,
+  showGeorefSuggestionsAtom
 } from 'state/control_points';
 import { splitsAtom, styleOptionsAtom } from 'state/jotai';
 import mapboxgl from 'mapbox-gl';
@@ -80,11 +82,25 @@ const persistentTransformAtom = atom<Transform>({
   y: 5
 });
 
-function createControlPointFocusMarkerElement(): HTMLDivElement {
+function createControlPointFocusMarkerElement(): HTMLButtonElement {
   const marker = document.createElement('button');
   marker.type = 'button';
   marker.className = 'geojsonio-control-point-marker';
 
+  return marker;
+}
+
+function createSuggestionPreviewMarkerElement(
+  index: number,
+  rationale: string
+): HTMLDivElement {
+  const marker = document.createElement('div');
+  marker.className =
+    'geojsonio-control-point-marker geojsonio-control-point-marker-suggestion';
+  marker.style.pointerEvents = 'none';
+  marker.textContent = `S${index + 1}`;
+  marker.setAttribute('aria-label', `Suggested control point S${index + 1}`);
+  marker.title = `S${index + 1}: ${rationale}`;
   return marker;
 }
 
@@ -129,6 +145,8 @@ export function GeojsonIO() {
     controlPointPlacementModeAtom
   );
   const [controlPoints] = useAtom(controlPointsAtom);
+  const georefSuggestions = useAtomValue(georefSuggestionsAtom);
+  const showGeorefSuggestions = useAtomValue(showGeorefSuggestionsAtom);
   const [activeControlPointId, setActiveControlPointId] = useAtom(
     activeControlPointIdAtom
   );
@@ -142,6 +160,9 @@ export function GeojsonIO() {
   const isPdfWorkspaceMaximized =
     digitizerMode && digitizerWorkspaceView === 'pdf';
   const controlPointMarkersRef = useRef<Map<string, mapboxgl.Marker>>(
+    new globalThis.Map()
+  );
+  const suggestionMarkersRef = useRef<Map<string, mapboxgl.Marker>>(
     new globalThis.Map()
   );
   const projectionBeforeDigitizerRef = useRef<'globe' | 'mercator' | null>(
@@ -292,10 +313,60 @@ export function GeojsonIO() {
   }, [activeControlPointId, controlPoints, setActiveControlPointId]);
 
   useEffect(() => {
+    const mapboxMap = map?.map;
+    const suggestionMarkers = suggestionMarkersRef.current;
+
+    if (!mapboxMap || !digitizerMode || !showGeorefSuggestions) {
+      clearControlPointMarkers(suggestionMarkers);
+      return;
+    }
+
+    const activeIds = new Set(georefSuggestions.map((s) => s.id));
+    suggestionMarkers.forEach((marker, id) => {
+      if (!activeIds.has(id)) {
+        marker.remove();
+        suggestionMarkers.delete(id);
+      }
+    });
+
+    georefSuggestions.forEach((suggestion, index) => {
+      if (
+        !Number.isFinite(suggestion.map.lon) ||
+        !Number.isFinite(suggestion.map.lat)
+      ) {
+        return;
+      }
+      const existing = suggestionMarkers.get(suggestion.id);
+      if (existing) {
+        existing.setLngLat([suggestion.map.lon, suggestion.map.lat]);
+        const el = existing.getElement();
+        el.textContent = `S${index + 1}`;
+        el.title = `S${index + 1}: ${suggestion.rationale}`;
+        return;
+      }
+
+      const el = createSuggestionPreviewMarkerElement(
+        index,
+        suggestion.rationale
+      );
+      const marker = new mapboxgl.Marker({
+        element: el,
+        anchor: 'center'
+      })
+        .setLngLat([suggestion.map.lon, suggestion.map.lat])
+        .addTo(mapboxMap);
+
+      suggestionMarkers.set(suggestion.id, marker);
+    });
+  }, [digitizerMode, georefSuggestions, map, showGeorefSuggestions]);
+
+  useEffect(() => {
     const markerMap = controlPointMarkersRef.current;
+    const suggestionMarkers = suggestionMarkersRef.current;
 
     return () => {
       clearControlPointMarkers(markerMap);
+      clearControlPointMarkers(suggestionMarkers);
     };
   }, []);
 
@@ -338,9 +409,7 @@ export function GeojsonIO() {
               <div
                 className={clsx(
                   'min-h-0 flex shrink-0 flex-col',
-                  isPdfWorkspaceMaximized
-                    ? 'w-full'
-                    : 'w-[45%] min-w-[320px]'
+                  isPdfWorkspaceMaximized ? 'w-full' : 'w-[45%] min-w-[320px]'
                 )}
                 style={
                   !isPdfWorkspaceMaximized && digitizerPdfPaneWidth !== null
@@ -357,6 +426,7 @@ export function GeojsonIO() {
                   }
                   pendingPdfPoint={pendingPdfPoint}
                   controlPoints={controlPoints}
+                  suggestions={showGeorefSuggestions ? georefSuggestions : []}
                   activeControlPointId={activeControlPointId}
                   onPageChange={setActivePdfPage}
                   onPageCountChange={(pageCount) => {
@@ -396,9 +466,7 @@ export function GeojsonIO() {
                 <ControlPointsPanel onControlPointClick={focusControlPoint} />
               </div>
               {!isPdfWorkspaceMaximized && (
-                <DigitizerSplitResizer
-                  onResize={setDigitizerPdfPaneWidth}
-                />
+                <DigitizerSplitResizer onResize={setDigitizerPdfPaneWidth} />
               )}
               <div
                 className={clsx(

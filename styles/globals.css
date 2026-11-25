@@ -394,6 +394,13 @@ body.dark .mapboxgl-ctrl-attrib-button {
   height: 24px;
 }
 
+.geojsonio-control-point-marker-suggestion {
+  background: #7c3aed;
+  border-style: dashed;
+  width: 24px;
+  height: 24px;
+}
+
 .geojsonio-control-point-focus-marker::before {
   content: '';
   position: absolute;
