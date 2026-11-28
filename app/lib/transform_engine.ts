@@ -209,6 +209,137 @@ export function transformRenderedPoint(
 }
 
 /**
+ * Projects a WGS-84 coordinate back into unscaled PDF coordinate space using
+ * an exact 2x2 matrix inverse for affine transforms or damped Newton-Raphson
+ * iteration with analytical radial-basis Jacobians for thin-plate splines.
+ */
+export function inverseTransformPoint(
+  transform: SolvedTransform,
+  target: LonLatCoordinate
+): PdfCoordinate {
+  if (transform.type === 'affine') {
+    return invertLinear2x2(
+      transform.lon.a,
+      transform.lon.b,
+      transform.lon.c,
+      transform.lat.d,
+      transform.lat.e,
+      transform.lat.f,
+      target
+    );
+  }
+
+  return inverseTransformPointTps(transform, target);
+}
+
+/**
+ * Estimates ground resolution in meters per 1 unscaled PDF coordinate unit
+ * around a reference PDF coordinate (or the control-point centroid by default).
+ */
+export function estimateMetersPerPdfUnit(
+  transform: SolvedTransform,
+  referencePoint?: PdfCoordinate
+): number {
+  const ref: PdfCoordinate =
+    referencePoint ??
+    (transform.type === 'tps' && transform.cpX.length > 0
+      ? {
+          x:
+            transform.cpX.reduce((sum, val) => sum + val, 0) /
+            transform.cpX.length,
+          y:
+            transform.cpY.reduce((sum, val) => sum + val, 0) /
+            transform.cpY.length
+        }
+      : { x: 300, y: 300 });
+
+  const origin = transformPoint(transform, ref);
+  const stepX = transformPoint(transform, { x: ref.x + 1, y: ref.y });
+  const stepY = transformPoint(transform, { x: ref.x, y: ref.y + 1 });
+
+  const metersX = haversineDistanceMeters(origin, stepX);
+  const metersY = haversineDistanceMeters(origin, stepY);
+  const geometricMean = Math.sqrt(Math.max(0, metersX * metersY));
+
+  if (Number.isFinite(geometricMean) && geometricMean > 1e-6) {
+    return geometricMean;
+  }
+  const arithmeticMean = (metersX + metersY) / 2;
+  return Number.isFinite(arithmeticMean) && arithmeticMean > 1e-6
+    ? arithmeticMean
+    : 1;
+}
+
+/**
+ * Computes the WGS-84 bounding box [minLon, minLat, maxLon, maxLat] covering
+ * an unscaled PDF page [0, pageWidth] x [0, pageHeight], buffered by marginMeters.
+ */
+export function computePdfPageBoundsOnMap(
+  transform: SolvedTransform,
+  pageWidth: number,
+  pageHeight: number,
+  marginMeters = 25
+): [number, number, number, number] {
+  if (
+    !Number.isFinite(pageWidth) ||
+    !Number.isFinite(pageHeight) ||
+    pageWidth <= 0 ||
+    pageHeight <= 0
+  ) {
+    throw new Error('PDF page dimensions must be positive numbers.');
+  }
+
+  let minLon = Infinity;
+  let minLat = Infinity;
+  let maxLon = -Infinity;
+  let maxLat = -Infinity;
+
+  const edgeSteps = 16;
+  const recordSample = (x: number, y: number) => {
+    const mapped = transformPoint(transform, { x, y });
+    if (mapped.lon < minLon) minLon = mapped.lon;
+    if (mapped.lon > maxLon) maxLon = mapped.lon;
+    if (mapped.lat < minLat) minLat = mapped.lat;
+    if (mapped.lat > maxLat) maxLat = mapped.lat;
+  };
+
+  for (let i = 0; i <= edgeSteps; i++) {
+    const t = i / edgeSteps;
+    recordSample(t * pageWidth, 0);
+    recordSample(t * pageWidth, pageHeight);
+    recordSample(0, t * pageHeight);
+    recordSample(pageWidth, t * pageHeight);
+  }
+
+  for (let gx = 1; gx < 4; gx++) {
+    for (let gy = 1; gy < 4; gy++) {
+      recordSample((gx / 4) * pageWidth, (gy / 4) * pageHeight);
+    }
+  }
+
+  const safeMargin = Math.max(
+    0,
+    Number.isFinite(marginMeters) ? marginMeters : 0
+  );
+  const metersPerDegLat = (Math.PI * EARTH_RADIUS_METERS) / 180;
+  const latBuffer = safeMargin / metersPerDegLat;
+  const maxAbsLat = Math.min(
+    89.9,
+    Math.max(Math.abs(minLat), Math.abs(maxLat)) + latBuffer
+  );
+  const lonBuffer =
+    safeMargin /
+    (metersPerDegLat * Math.max(Math.cos(toRadians(maxAbsLat)), 1e-6));
+
+  return [
+    minLon - lonBuffer,
+    minLat - latBuffer,
+    maxLon + lonBuffer,
+    maxLat + latBuffer
+  ];
+}
+
+/**
  * Computes a thin-plate spline PDF->WGS84 transform.
  * With ≥6 well-distributed GCPs this absorbs scan warp and projection distortion
  * that an affine model cannot, achieving near-zero residuals at all control points.
@@ -330,6 +461,124 @@ function transformPointTps(
 function tpsKernel(dx: number, dy: number): number {
   const r2 = dx * dx + dy * dy;
   return r2 === 0 ? 0 : r2 * Math.log(r2);
+}
+
+function invertLinear2x2(
+  a: number,
+  b: number,
+  c: number,
+  d: number,
+  e: number,
+  f: number,
+  target: LonLatCoordinate
+): PdfCoordinate {
+  const det = a * e - b * d;
+  if (!Number.isFinite(det) || Math.abs(det) < 1e-24) {
+    throw new Error('Transform is singular; cannot invert coordinate.');
+  }
+  const dLon = target.lon - c;
+  const dLat = target.lat - f;
+  return {
+    x: (e * dLon - b * dLat) / det,
+    y: (-d * dLon + a * dLat) / det
+  };
+}
+
+function inverseTransformPointTps(
+  transform: TpsTransform,
+  target: LonLatCoordinate
+): PdfCoordinate {
+  const n = transform.cpX.length;
+  const { cpX, cpY, lonParams, latParams } = transform;
+
+  const a = lonParams[n + 1];
+  const b = lonParams[n + 2];
+  const c = lonParams[n];
+  const d = latParams[n + 1];
+  const e = latParams[n + 2];
+  const f = latParams[n];
+
+  let x = 0;
+  let y = 0;
+  const affineDet = a * e - b * d;
+  if (Number.isFinite(affineDet) && Math.abs(affineDet) >= 1e-24) {
+    const initial = invertLinear2x2(a, b, c, d, e, f, target);
+    x = initial.x;
+    y = initial.y;
+  } else if (n > 0) {
+    x = cpX.reduce((sum, val) => sum + val, 0) / n;
+    y = cpY.reduce((sum, val) => sum + val, 0) / n;
+  }
+
+  for (let iter = 0; iter < 30; iter++) {
+    const predicted = transformPointTps(transform, { x, y });
+    const resLon = predicted.lon - target.lon;
+    const resLat = predicted.lat - target.lat;
+    const currentNorm = Math.hypot(resLon, resLat);
+    if (currentNorm < 1e-13) {
+      break;
+    }
+
+    let j11 = a;
+    let j12 = b;
+    let j21 = d;
+    let j22 = e;
+
+    for (let i = 0; i < n; i++) {
+      const dx = x - cpX[i];
+      const dy = y - cpY[i];
+      const r2 = dx * dx + dy * dy;
+      if (r2 > 1e-24) {
+        const factor = Math.log(r2) + 1;
+        const dKdx = 2 * dx * factor;
+        const dKdy = 2 * dy * factor;
+        j11 += lonParams[i] * dKdx;
+        j12 += lonParams[i] * dKdy;
+        j21 += latParams[i] * dKdx;
+        j22 += latParams[i] * dKdy;
+      }
+    }
+
+    const det = j11 * j22 - j12 * j21;
+    if (!Number.isFinite(det) || Math.abs(det) < 1e-28) {
+      break;
+    }
+
+    const stepX = (j22 * resLon - j12 * resLat) / det;
+    const stepY = (-j21 * resLon + j11 * resLat) / det;
+    if (Math.hypot(stepX, stepY) < 1e-9) {
+      x -= stepX;
+      y -= stepY;
+      break;
+    }
+
+    let alpha = 1;
+    let accepted = false;
+    for (let ls = 0; ls < 8; ls++) {
+      const candX = x - alpha * stepX;
+      const candY = y - alpha * stepY;
+      const candPred = transformPointTps(transform, { x: candX, y: candY });
+      const candNorm = Math.hypot(
+        candPred.lon - target.lon,
+        candPred.lat - target.lat
+      );
+      if (candNorm < currentNorm) {
+        x = candX;
+        y = candY;
+        accepted = true;
+        break;
+      }
+      alpha *= 0.5;
+    }
+
+    if (!accepted) {
+      x -= 0.25 * stepX;
+      y -= 0.25 * stepY;
+      break;
+    }
+  }
+
+  return { x, y };
 }
 
 function solveAffineParams(

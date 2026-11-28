@@ -144,4 +144,60 @@ describe('PdfViewer workspace control', () => {
     act(() => root.unmount());
     context.mockRestore();
   });
+
+  it('defaults parcel GeoJSON extraction mode to individual parcel classification', async () => {
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    const file = new File(['pdf'], 'map.pdf', { type: 'application/pdf' });
+    Object.defineProperty(file, 'arrayBuffer', {
+      value: () => Promise.resolve(new ArrayBuffer(0))
+    });
+    const context = vi
+      .spyOn(HTMLCanvasElement.prototype, 'getContext')
+      .mockReturnValue({} as CanvasRenderingContext2D);
+
+    await act(async () => {
+      root.render(<PdfViewer file={file} />);
+      await Promise.resolve();
+    });
+
+    const workflow = Array.from(container.querySelectorAll('button')).find(
+      (item) => item.textContent?.includes('Legend & shape extraction')
+    );
+    act(() => workflow?.click());
+
+    const parcelInput = container.querySelector<HTMLInputElement>(
+      'input[accept*="geojson"]'
+    );
+    expect(parcelInput).not.toBeNull();
+
+    const parcelGeoJson = new File(
+      [JSON.stringify({ type: 'FeatureCollection', features: [] })],
+      'parcels.geojson',
+      { type: 'application/geo+json' }
+    );
+    Object.defineProperty(parcelInput!, 'files', {
+      value: [parcelGeoJson],
+      configurable: true
+    });
+
+    act(() => {
+      parcelInput?.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+
+    const modeSelect = container.querySelector<HTMLSelectElement>(
+      '#parcel-extraction-mode'
+    );
+    expect(modeSelect).not.toBeNull();
+    expect(modeSelect?.value).toBe('classify_parcels');
+    expect(Array.from(modeSelect!.options).map((opt) => opt.value)).toEqual([
+      'classify_parcels',
+      'dissolve_parcels',
+      'snap_outlines'
+    ]);
+
+    act(() => root.unmount());
+    context.mockRestore();
+  });
 });

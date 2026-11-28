@@ -21,16 +21,20 @@ confirmation; review and confirm it again before using it for georeferencing.
 ### Parcel-assisted extraction
 
 Select a local WGS-84 GeoJSON FeatureCollection of parcel polygons in the PDF
-viewer's **Legend & shape extraction** panel. After extracting and
-georeferencing shapes, the app scans the file and indexes only parcel edges
-whose bounds intersect an extracted shape's bounds plus the adjustable snap
-tolerance (5 m by default). Parcel data are streamed from the local file; a
-statewide file can still take time to scan and must be scanned again when
-extraction is rerun. The GCPs must be confirmed on the current PDF page.
+viewer's **Legend & shape extraction** panel. Three parcel modes are available:
 
-Snapping is heuristic: it considers nearby edges, keeps poorly aligned PDF
-outlines unchanged, and does not guarantee legal zoning boundaries. Review all
-results before export. Parcel data are not included in the exported GeoJSON.
+- **Classify individual parcels (default):** Streams all parcels intersecting
+  the georeferenced PDF page bounds, projects each parcel into PDF space, and
+  classifies its interior zoning against PDF vector fill paths and high-DPI
+  CIELAB pixels calibrated from the legend swatches.
+- **Merge adjacent same-zone parcels:** Classifies parcels and dissolves
+  contiguous same-zone parcels into district polygons.
+- **Snap PDF outlines only:** Extracts zoning shapes from the PDF first and
+  snaps aligned outer vertices within the adjustable tolerance (5 m by default).
+
+Split-zoned or boundary-ambiguous parcels receive `confidence < 0.5` and require
+human confirmation before export. Raw parcel attributes are not included in the
+exported GeoJSON.
 
 ## Bug Reports & Feature Requests
 
