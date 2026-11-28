@@ -1,4 +1,7 @@
 import {
+  computePdfPageBoundsOnMap,
+  estimateMetersPerPdfUnit,
+  inverseTransformPoint,
   selectConsistentControlPoints,
   solveAffineTransform,
   solveTransform,
@@ -321,5 +324,73 @@ describe('transform_engine', () => {
     ]);
 
     expect(selectConsistentControlPoints(groups)).toBeNull();
+  });
+
+  it('inverts affine transforms back to exact PDF coordinates', () => {
+    const transform = makeKnownTransform();
+    const samples = [
+      { x: 0, y: 0 },
+      { x: 145.25, y: 312.75 },
+      { x: 580.5, y: 740.125 }
+    ];
+
+    for (const pt of samples) {
+      const mapped = transformPoint(transform, pt);
+      const recovered = inverseTransformPoint(transform, mapped);
+      expect(recovered.x).toBeCloseTo(pt.x, 8);
+      expect(recovered.y).toBeCloseTo(pt.y, 8);
+    }
+  });
+
+  it('inverts warped thin-plate spline transforms via Newton-Raphson', () => {
+    const base = makeKnownTransform();
+    const WARP = 5e-9;
+    const rawCoords = [
+      { x: 50, y: 50 },
+      { x: 400, y: 80 },
+      { x: 250, y: 300 },
+      { x: 80, y: 450 },
+      { x: 450, y: 420 },
+      { x: 220, y: 180 }
+    ];
+    const warpedPoints: TransformControlPoint[] = rawCoords.map((pdf) => {
+      const m = transformPoint(base, pdf);
+      return {
+        pdf,
+        map: {
+          lon: m.lon + WARP * pdf.x * pdf.y,
+          lat: m.lat - WARP * pdf.x * pdf.x
+        }
+      };
+    });
+
+    const { transform } = solveThinPlateSpline(warpedPoints);
+    const interiorQuery = { x: 235.4, y: 265.8 };
+    const mapped = transformPoint(transform, interiorQuery);
+    const recovered = inverseTransformPoint(transform, mapped);
+
+    expect(recovered.x).toBeCloseTo(interiorQuery.x, 5);
+    expect(recovered.y).toBeCloseTo(interiorQuery.y, 5);
+  });
+
+  it('estimates meters per PDF unit and computes buffered page map bounds', () => {
+    const northUpTransform: AffineTransform = {
+      type: 'affine',
+      lon: { a: 0.0000587, b: 0, c: -88.26 },
+      lat: { d: 0, e: -0.0000449, f: 40.13 }
+    };
+
+    const metersPerUnit = estimateMetersPerPdfUnit(northUpTransform);
+    expect(metersPerUnit).toBeGreaterThan(4.5);
+    expect(metersPerUnit).toBeLessThan(5.5);
+
+    const bounds = computePdfPageBoundsOnMap(northUpTransform, 612, 792, 20);
+    const topLeft = transformPoint(northUpTransform, { x: 0, y: 0 });
+    const bottomRight = transformPoint(northUpTransform, { x: 612, y: 792 });
+
+    expect(bounds[0]).toBeLessThan(Math.min(topLeft.lon, bottomRight.lon));
+    expect(bounds[1]).toBeLessThan(Math.min(topLeft.lat, bottomRight.lat));
+    expect(bounds[2]).toBeGreaterThan(Math.max(topLeft.lon, bottomRight.lon));
+    expect(bounds[3]).toBeGreaterThan(Math.max(topLeft.lat, bottomRight.lat));
   });
 });

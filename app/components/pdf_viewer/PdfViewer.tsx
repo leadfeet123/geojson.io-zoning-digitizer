@@ -17,19 +17,12 @@ import type { ChangeEvent, DragEvent, MouseEvent } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAtom } from 'jotai';
 import { extractedLegendAtom } from 'state/digitizer';
-import { ocrAdapter } from 'app/lib/ocr_adapter';
-import { spatialExtractionEngine } from '../../lib/spatial_extraction_engine';
+import type { ParcelExtractionMode } from 'app/lib/parcel_zoning_classifier';
 import {
-  createLocalParcelBoundaryIndex,
-  snapPolygonToParcelBoundaries
-} from 'app/lib/parcel_snapping';
+  extractCalibratedLegendFromCrop,
+  runZoningExtractionPipeline
+} from 'app/lib/zoning_extraction_pipeline';
 import { digitizerFeaturesAtom } from 'state/digitizer_features';
-import {
-  solveTransform,
-  transformRenderedPoint
-} from '../../lib/transform_engine';
-import { newFeatureId as generateId } from '../../lib/id';
-import type { DigitizerFeature } from 'types/digitizer';
 import type { ControlPointPair } from 'state/control_points';
 import type { GeorefSuggestion } from 'app/lib/georef_suggestion_adapter';
 
@@ -108,6 +101,8 @@ export function PdfViewer({
     digitizerFeaturesAtom
   );
   const [parcelFile, setParcelFile] = useState<File | null>(null);
+  const [parcelMode, setParcelMode] =
+    useState<ParcelExtractionMode>('classify_parcels');
   const [parcelStatus, setParcelStatus] = useState<string | null>(null);
   const [snapToleranceInput, setSnapToleranceInput] = useState('5');
   const [shapeExtractionMessage, setShapeExtractionMessage] = useState<
@@ -131,6 +126,7 @@ export function PdfViewer({
   const extractionInputsRef = useRef({
     file,
     parcelFile,
+    parcelMode,
     controlPoints,
     activePage,
     snapToleranceInput,
@@ -140,6 +136,7 @@ export function PdfViewer({
   extractionInputsRef.current = {
     file,
     parcelFile,
+    parcelMode,
     controlPoints,
     activePage,
     snapToleranceInput,
@@ -450,33 +447,32 @@ export function PdfViewer({
 
       setIsExtracting(true);
       try {
-        // Create a temporary canvas to extract the image data
-        const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = width;
-        tempCanvas.height = height;
-        const ctx = tempCanvas.getContext('2d');
-        if (ctx) {
-          ctx.drawImage(canvas, x, y, width, height, 0, 0, width, height);
-          const base64Image = tempCanvas.toDataURL('image/jpeg');
-          const legend = await ocrAdapter.extractLegend(base64Image);
-          if (!legend) {
-            setExtractedLegend(null);
-            setLegendCropMessage(
-              'Legend extraction returned no data. Try a tighter crop around only the legend rows, then retry.'
-            );
-            return;
-          }
+        const pdfPage = docState ? await docState.getPage(activePage) : null;
+        const scale = Number(canvas.dataset.pdfScale ?? renderedScale) || 1;
+        const legend = await extractCalibratedLegendFromCrop({
+          pdfPage,
+          displayCanvas: canvas,
+          cropBoxPx: { x, y, width, height },
+          displayScale: scale
+        });
 
-          setExtractedLegend(legend);
-          if (legend.zones.length > 0) {
-            setLegendCropMessage(
-              `Legend captured: found ${legend.zones.length} zone${legend.zones.length === 1 ? '' : 's'}.`
-            );
-          } else {
-            setLegendCropMessage(
-              'Legend crop completed, but no zones were detected. Try zooming in and cropping tighter around the legend rows.'
-            );
-          }
+        if (!legend) {
+          setExtractedLegend(null);
+          setLegendCropMessage(
+            'Legend extraction returned no data. Try a tighter crop around only the legend rows, then retry.'
+          );
+          return;
+        }
+
+        setExtractedLegend(legend);
+        if (legend.zones.length > 0) {
+          setLegendCropMessage(
+            `Legend captured & calibrated: found ${legend.zones.length} zone${legend.zones.length === 1 ? '' : 's'}.`
+          );
+        } else {
+          setLegendCropMessage(
+            'Legend crop completed, but no zones were detected. Try zooming in and cropping tighter around the legend rows.'
+          );
         }
       } catch (err) {
         console.error('Failed to extract legend', err);
@@ -492,7 +488,15 @@ export function PdfViewer({
         setCropEnd(null);
       }
     },
-    [isDrawingCrop, cropStart, cropEnd, setExtractedLegend]
+    [
+      activePage,
+      cropEnd,
+      cropStart,
+      docState,
+      isDrawingCrop,
+      renderedScale,
+      setExtractedLegend
+    ]
   );
 
   const handleExtractShapes = useCallback(async () => {
@@ -503,7 +507,6 @@ export function PdfViewer({
     )
       return;
 
-    // Check if we have enough confirmed GCPs for transform
     const confirmedGCPs = controlPoints.filter(
       (p) => p.confirmed && p.pdf.page === activePage
     );
@@ -539,117 +542,46 @@ export function PdfViewer({
       ) {
         throw new Error('Wait for the current PDF page to finish rendering.');
       }
-      const transformResult = solveTransform(confirmedGCPs);
-      const extractedPolygons = await spatialExtractionEngine.extractShapes(
-        canvas,
-        extractedLegend.zones
-      );
 
-      const mapRings: [number, number][][] = extractedPolygons.map((poly) => {
-        const ring: [number, number][] = poly.pdfCoordinates.map((pt) => {
-          const mapPt = transformRenderedPoint(
-            transformResult.transform,
-            pt,
-            scale
-          );
-          return [mapPt.lon, mapPt.lat];
-        });
-        if (ring.length > 0) {
-          const first = ring[0];
-          const last = ring[ring.length - 1];
-          if (first[0] !== last[0] || first[1] !== last[1]) {
-            ring.push([...first]);
-          }
+      const pdfPage = docState ? await docState.getPage(activePage) : null;
+      const pipelineResult = await runZoningExtractionPipeline({
+        pdfPage,
+        displayCanvas: canvas,
+        displayScale: scale,
+        legend: extractedLegend,
+        confirmedControlPoints: confirmedGCPs,
+        sourceName: file ? file.name : 'extracted_shapes',
+        parcelFile,
+        parcelMode,
+        snapToleranceMeters,
+        onStatus: (statusText) => {
+          setShapeExtractionMessage(statusText);
+          if (parcelFile) setParcelStatus(statusText);
         }
-        return ring;
       });
 
-      let localParcelResult = null;
-      if (parcelFile && mapRings.length > 0) {
-        setParcelStatus('Scanning parcel file for the extracted map area...');
-        localParcelResult = await createLocalParcelBoundaryIndex(
-          parcelFile,
-          mapRings,
-          snapToleranceMeters
-        );
-      }
       const currentInputs = extractionInputsRef.current;
       if (
         currentInputs.file !== inputs.file ||
         currentInputs.parcelFile !== inputs.parcelFile ||
+        currentInputs.parcelMode !== inputs.parcelMode ||
         currentInputs.controlPoints !== inputs.controlPoints ||
         currentInputs.activePage !== inputs.activePage ||
         currentInputs.snapToleranceInput !== inputs.snapToleranceInput ||
-        currentInputs.extractedLegend !== inputs.extractedLegend ||
-        currentInputs.renderedScale !== inputs.renderedScale
+        currentInputs.extractedLegend !== inputs.extractedLegend
       ) {
         throw new Error(
           'Extraction inputs changed. Please run extraction again.'
         );
       }
-      const parcelBoundaryIndex = localParcelResult?.parcelIndex ?? null;
-      if (localParcelResult) {
-        setParcelStatus(
-          `Scanned ${localParcelResult.scannedParcelCount} parcels; found ${parcelBoundaryIndex?.parcelCount ?? 0} with edges in the buffered extracted-shape bounds.`
-        );
+
+      if (pipelineResult.parcelStatusMessage) {
+        setParcelStatus(pipelineResult.parcelStatusMessage);
       }
-      let snappedShapeCount = 0;
-      let unchangedShapeCount = 0;
-      let snappedVertexCount = 0;
-      const newFeatures: DigitizerFeature[] = extractedPolygons.map(
-        (poly, index) => {
-          const mapCoords = mapRings[index];
 
-          const parcelSnap = parcelBoundaryIndex
-            ? snapPolygonToParcelBoundaries(
-                mapCoords,
-                parcelBoundaryIndex,
-                snapToleranceMeters
-              )
-            : null;
-          if (parcelSnap) {
-            mapCoords.splice(0, mapCoords.length, ...parcelSnap.coordinates);
-            if (parcelSnap.applied) {
-              snappedShapeCount++;
-              snappedVertexCount += parcelSnap.snappedVertexCount;
-            } else {
-              unchangedShapeCount++;
-            }
-          }
-
-          // Generate the base feature
-          const feature: DigitizerFeature = {
-            id: generateId(),
-            geometry: {
-              type: 'Polygon',
-              coordinates: [mapCoords]
-            },
-            properties: {
-              planning_class: poly.legendItem.description,
-              raw_zoning_label: poly.legendItem.code,
-              confidence: 0.5,
-              source_type: 'digitized',
-              source_name: file ? file.name : 'extracted_shapes',
-              human_confirmed: false
-            }
-          };
-
-          return feature;
-        }
-      );
-
-      setDigitizerFeatures((prev) => [...prev, ...newFeatures]);
-      const parcelSummary = localParcelResult
-        ? parcelBoundaryIndex
-          ? ` Parcel alignment adjusted ${snappedShapeCount} shape${snappedShapeCount === 1 ? '' : 's'} (${snappedVertexCount} vertices); kept ${unchangedShapeCount} PDF outline${unchangedShapeCount === 1 ? '' : 's'} unchanged.`
-          : ' No parcel edges were found in the extracted-shape bounds; PDF outlines were kept unchanged.'
-        : '';
-      setShapeExtractionMessage(
-        `Successfully extracted ${newFeatures.length} shapes.${parcelSummary}`
-      );
-      alert(
-        `Successfully extracted ${newFeatures.length} shapes.${parcelSummary}`
-      );
+      setDigitizerFeatures((prev) => [...prev, ...pipelineResult.features]);
+      setShapeExtractionMessage(pipelineResult.summaryMessage);
+      alert(pipelineResult.summaryMessage);
     } catch (err) {
       console.error('Failed to extract shapes:', err);
       const message =
@@ -663,13 +595,15 @@ export function PdfViewer({
       setIsExtractingShapes(false);
     }
   }, [
-    extractedLegend,
+    activePage,
     controlPoints,
+    docState,
+    extractedLegend,
     file,
     parcelFile,
-    activePage,
-    snapToleranceInput,
-    setDigitizerFeatures
+    parcelMode,
+    setDigitizerFeatures,
+    snapToleranceInput
   ]);
 
   const handleParcelFileInput = useCallback(
@@ -1071,13 +1005,12 @@ export function PdfViewer({
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <p className="text-xs font-medium text-gray-800 dark:text-gray-100">
-                      Parcel edge assistance
+                      Parcel zoning &amp; boundary assistance
                     </p>
                     <p className="text-xs text-gray-600 dark:text-gray-300">
-                      Only parcels near extracted shapes are indexed. PDF
-                      outlines stay authoritative. Shared parcel edges inside a
-                      zone are ignored; snapping is applied only when at least
-                      half the outline aligns.
+                      Streams parcels in the georeferenced PDF footprint and
+                      classifies each parcel&apos;s interior zoning from vector
+                      and high-DPI PDF layers (or snaps PDF outlines).
                     </p>
                   </div>
                   <button
@@ -1101,25 +1034,55 @@ export function PdfViewer({
                   </p>
                 )}
                 {parcelFile && (
-                  <div className="flex items-center gap-2">
-                    <label
-                      className="text-xs text-gray-700 dark:text-gray-200"
-                      htmlFor="parcel-snap-tolerance"
-                    >
-                      Snap tolerance (meters)
-                    </label>
-                    <input
-                      id="parcel-snap-tolerance"
-                      type="number"
-                      min="0.5"
-                      max="100"
-                      step="0.5"
-                      value={snapToleranceInput}
-                      onChange={(event) =>
-                        setSnapToleranceInput(event.currentTarget.value)
-                      }
-                      className="w-20 rounded border border-gray-300 bg-white px-2 py-1 text-xs dark:border-gray-600 dark:bg-gray-800"
-                    />
+                  <div className="flex flex-wrap items-center gap-3">
+                    <div className="flex items-center gap-2">
+                      <label
+                        className="text-xs text-gray-700 dark:text-gray-200"
+                        htmlFor="parcel-extraction-mode"
+                      >
+                        Parcel mode
+                      </label>
+                      <select
+                        id="parcel-extraction-mode"
+                        value={parcelMode}
+                        onChange={(event) =>
+                          setParcelMode(
+                            event.currentTarget.value as ParcelExtractionMode
+                          )
+                        }
+                        className="rounded border border-gray-300 bg-white px-2 py-1 text-xs dark:border-gray-600 dark:bg-gray-800"
+                      >
+                        <option value="classify_parcels">
+                          Classify individual parcels (highest accuracy)
+                        </option>
+                        <option value="dissolve_parcels">
+                          Merge adjacent same-zone parcels
+                        </option>
+                        <option value="snap_outlines">
+                          Snap PDF outlines only
+                        </option>
+                      </select>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <label
+                        className="text-xs text-gray-700 dark:text-gray-200"
+                        htmlFor="parcel-snap-tolerance"
+                      >
+                        Snap tolerance (meters)
+                      </label>
+                      <input
+                        id="parcel-snap-tolerance"
+                        type="number"
+                        min="0.5"
+                        max="100"
+                        step="0.5"
+                        value={snapToleranceInput}
+                        onChange={(event) =>
+                          setSnapToleranceInput(event.currentTarget.value)
+                        }
+                        className="w-20 rounded border border-gray-300 bg-white px-2 py-1 text-xs dark:border-gray-600 dark:bg-gray-800"
+                      />
+                    </div>
                   </div>
                 )}
                 {shapeExtractionMessage && (

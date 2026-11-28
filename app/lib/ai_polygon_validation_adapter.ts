@@ -4,36 +4,41 @@ import { logAiError } from 'app/lib/ai_logger';
 
 const GEMINI_TIMEOUT_MS = 15_000;
 
+/** Outcome of AI visual validation for an extracted candidate zoning polygon. */
 export interface PolygonValidationResult {
   isValid: boolean;
   confidence: number;
   reason: string;
 }
 
+/** Image crop payload sent to the polygon validation adapter. */
 export interface PolygonValidationRequest {
   imageBytes: Uint8Array;
   mimeType: string;
 }
 
+/** Adapter contract for validating ambiguous or repaired polygon candidates. */
 export interface AiPolygonValidationAdapter {
   validatePolygon(
     request: PolygonValidationRequest
   ): Promise<PolygonValidationResult>;
 }
 
+/** Deterministic offline fallback adapter when no remote AI key is configured. */
 export class LookupPolygonValidationAdapter implements AiPolygonValidationAdapter {
   validatePolygon(
-    request: PolygonValidationRequest
+    _request: PolygonValidationRequest
   ): Promise<PolygonValidationResult> {
     // Deterministic fallback: assume valid if no AI available
     return Promise.resolve({
       isValid: true,
-      confidence: 1.0,
-      reason: 'AI validation unavailable. Assuming valid by default.'
+      confidence: 0.75,
+      reason: 'AI validation unavailable. Keeping candidate for human review.'
     });
   }
 }
 
+/** Gemini Vision adapter evaluating highlighted candidate zoning outlines in context. */
 export class GeminiPolygonValidationAdapter implements AiPolygonValidationAdapter {
   constructor(
     private readonly apiKey: string,
@@ -69,7 +74,7 @@ export class GeminiPolygonValidationAdapter implements AiPolygonValidationAdapte
       });
 
       const prompt =
-        'Analyze this image crop containing a detected shape from a zoning map. Does this shape look like a clear, meaningful zoning area (like a parcel, block, or district), or is it an extraction artifact? Reject slivers, very jagged kink fragments, text outlines, and single lines. Return isValid as true or false, confidence between 0.0 and 1.0, and a concise reason.';
+        'Analyze this zoning map crop. A candidate polygon is highlighted with a bright cyan (#00FFFF) outline. Determine whether the cyan outline bounds a real colored zoning parcel, lot, corridor, or district (isValid: true), or whether it is purely a non-zoning artifact such as a stray border line, text glyph outline, scale bar, or microscopic kink sliver (isValid: false). Valid zoning parcels can be small lots or elongated road corridors. Return isValid, confidence between 0.0 and 1.0, and a concise reason.';
 
       const base64Image = Buffer.from(request.imageBytes).toString('base64');
 
